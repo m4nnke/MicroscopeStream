@@ -16,7 +16,7 @@ class Camera:
         self.output_modules: List[OutputModule] = []
         
         # Camera settings
-        self.current_capture_fps = 1.0 # Default to 1 FPS, will be updated
+        self.current_capture_fps = 1/20 # Default to 1/20 FPS, will be updated
         self.resolution = (1920, 1080)  # Default Full HD
         self.brightness = 0.0  # Range: -1.0 to 1.0
         self.contrast = 1.0    # Range: 0.0 to 4.0

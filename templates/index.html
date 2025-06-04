@@ -157,6 +157,9 @@
                 <button id="stopTimelapse" class="stop">Stop Timelapse</button>
                 <span id="timelapseStatus" class="status-light"></span> <span id="timelapseFramesStatus">Timelapse Idle</span>
             </div>
+            <div class="controls-group">
+                <a href="{{ url_for('capture_high_res_still') }}" target="_blank" rel="noopener noreferrer" class="button" style="text-decoration: none; display: inline-block;">Capture Max Res Still</a>
+            </div>
         </div>
 
         <div class="column" id="settings-column">

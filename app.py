@@ -1,5 +1,8 @@
-from flask import Flask, render_template, Response, request, jsonify
+from flask import Flask, render_template, Response, request, jsonify, send_file
 import os
+import cv2
+import io
+import time
 
 from camera import Camera, DEFAULT_IDLE_CAMERA_FPS
 from stream_manager import StreamManager
@@ -206,6 +209,36 @@ def list_timelapses():
     if os.path.exists(timelapses_dir):
         lapses = sorted([f for f in os.listdir(timelapses_dir) if f.endswith('.mp4')], reverse=True)
     return jsonify({'timelapses': lapses})
+
+@app.route('/capture_high_res_still')
+def capture_high_res_still():
+    """Captures a still image at maximum resolution and returns it as a download."""
+    frame = camera.capture_still_at_max_resolution()
+    if frame is not None:
+        try:
+            # Encode frame to JPEG
+            success, encoded_image = cv2.imencode('.jpg', frame)
+            if not success:
+                return jsonify({"success": False, "message": "Failed to encode image to JPEG."}), 500
+            
+            # Create a BytesIO object from the encoded image
+            image_io = io.BytesIO(encoded_image.tobytes())
+            
+            # Generate a filename with timestamp
+            timestamp = time.strftime("%Y%m%d-%H%M%S")
+            filename = f"high_res_still_{timestamp}.jpg"
+            
+            return send_file(
+                image_io,
+                mimetype='image/jpeg',
+                as_attachment=True,
+                download_name=filename
+            )
+        except Exception as e:
+            print(f"Error processing or sending high-res still: {e}")
+            return jsonify({"success": False, "message": f"Error processing image: {str(e)}"}), 500
+    else:
+        return jsonify({"success": False, "message": "Failed to capture high-resolution still image."}), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True) 

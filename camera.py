@@ -27,6 +27,9 @@ class Camera:
         self.saturation = 1.0  # Range: 0.0 to 4.0
         self.exposure = 0      # In microseconds, 0 for auto
         
+        self.sensor_modes = [] # To store sensor capabilities
+        self.max_sensor_resolution = None # Store max resolution
+        
     def start(self) -> bool:
         """Start the camera and frame capture thread."""
         if self.is_running:
@@ -34,6 +37,21 @@ class Camera:
             
         try:
             self.camera = Picamera2()
+            
+            # Get sensor capabilities
+            try:
+                self.sensor_modes = self.camera.sensor_modes
+                if self.sensor_modes:
+                    # Find the mode with the largest area; typically the last one or one with largest 'size'
+                    self.max_sensor_resolution = max(self.sensor_modes, key=lambda m: m['size'][0] * m['size'][1])['size']
+                    print(f"Determined maximum sensor resolution: {self.max_sensor_resolution}")
+                else:
+                    print("Warning: Could not retrieve sensor modes. Max resolution capture might be limited.")
+                    self.max_sensor_resolution = self.resolution # Fallback
+            except Exception as e:
+                print(f"Warning: Error fetching sensor modes: {e}. Max resolution capture might be limited.")
+                self.max_sensor_resolution = self.resolution # Fallback
+
             preview_config = self.camera.create_preview_configuration(
                 main={"size": self.resolution, "format": "BGR888"},
                 buffer_count=2
@@ -248,10 +266,147 @@ class Camera:
             'brightness': brightness_ui,
             'contrast': contrast_ui,
             'saturation': saturation_ui,
-            'exposure': exposure_ui
+            'exposure': exposure_ui # Placeholder, actual exposure value is not directly mapped to UI yet
         }
         
     @property
     def is_active(self) -> bool:
-        """Check if camera is active."""
+        """Check if any output module is actively processing."""
         return self.is_running and self.camera is not None 
+
+    def _get_max_resolution_from_sensor(self):
+        """Helper to query Picamera2 for max sensor resolution."""
+        # This method assumes self.camera might not be initialized or could be None
+        # or might be called before self.start() populates self.max_sensor_resolution
+        if self.max_sensor_resolution: # Prefer already determined value
+            return self.max_sensor_resolution
+
+        temp_cam_instance = None
+        try:
+            if self.camera and hasattr(self.camera, 'sensor_modes'): # If global camera exists and has modes
+                modes = self.camera.sensor_modes
+            else: # Otherwise, create a temporary instance
+                print("Creating temporary Picamera2 instance to query sensor modes.")
+                temp_cam_instance = Picamera2()
+                modes = temp_cam_instance.sensor_modes
+            
+            if modes:
+                # Find the mode with the largest area
+                max_res = max(modes, key=lambda m: m['size'][0] * m['size'][1])['size']
+                print(f"Queried max sensor resolution: {max_res}")
+                return max_res
+            else:
+                print("Could not retrieve sensor modes for max resolution.")
+                return self.resolution # Fallback to current/default
+        except Exception as e:
+            print(f"Error dynamically getting sensor modes: {e}")
+            return self.resolution # Fallback
+        finally:
+            if temp_cam_instance:
+                temp_cam_instance.close()
+                print("Closed temporary Picamera2 instance.")
+
+    def capture_still_at_max_resolution(self):
+        """
+        Captures a still image at the camera's maximum sensor resolution.
+        Temporarily adjusts camera settings if it's already running a stream.
+        If camera is not running, it performs a one-off capture.
+        Returns:
+            A NumPy array representing the image, or None on failure.
+        """
+        target_max_res = self._get_max_resolution_from_sensor()
+        if not target_max_res:
+            print("Failed to determine target maximum resolution.")
+            return None
+
+        print(f"Attempting still capture at resolution: {target_max_res}")
+        frame = None
+
+        if self.is_running and self.camera and self.camera.started:
+            print("Camera is active. Using switch_mode_and_capture_array for high-res still.")
+            try:
+                # switch_mode_and_capture_array handles state changes (stop, reconfigure, capture, restore, restart)
+                still_config = self.camera.create_still_configuration(
+                    main={"size": target_max_res, "format": "BGR888"}, # Use BGR888 for OpenCV compatibility
+                    buffer_count=2, # Still recommended to have at least 2 for picamera2
+                    # controls={"FrameDurationLimits": (100000, 100000)} # e.g., 10fps, tune as needed
+                )
+                # Preserve current transform if any (though still_config might reset it)
+                # current_transform = self.camera.camera_configuration().get("transform")
+                # if current_transform:
+                # still_config["transform"] = current_transform
+                
+                # Apply current non-FPS parameters to the still_config's controls
+                # This helps maintain brightness, contrast etc. for the still shot
+                current_params_for_still = {}
+                gain = 1.0 + (self.brightness + 1.0) * 1.5
+                current_params_for_still["AnalogueGain"] = max(1.0, min(self.camera.camera_controls["AnalogueGain"][1], gain)) # ensure within reported limits
+                current_params_for_still["Contrast"] = max(0.0, min(self.camera.camera_controls["Contrast"][1], self.contrast))
+                current_params_for_still["Saturation"] = max(0.0, min(self.camera.camera_controls["Saturation"][1], self.saturation))
+                if self.exposure > 0: # if exposure is not auto
+                     current_params_for_still["ExposureTime"] = self.exposure
+                
+                # Merge these with any controls already in still_config (like FrameDurationLimits)
+                if 'controls' not in still_config:
+                    still_config['controls'] = {}
+                still_config['controls'].update(current_params_for_still)
+                
+                print(f"Configuring for still capture: {still_config}")
+
+                frame = self.camera.switch_mode_and_capture_array(still_config, stream_name="main")
+                print(f"Successfully captured {target_max_res} frame via switch_mode_and_capture_array.")
+            except Exception as e:
+                print(f"Error during switch_mode_and_capture_array: {e}")
+                # switch_mode_and_capture_array should ideally restore the camera to its previous state.
+                # If not, restarting the camera might be necessary if it's left in a bad state.
+                # self.stop()
+                # self.start() # This could be too disruptive.
+                return None
+        else:
+            print("Camera is not running or not fully started. Performing one-off high-resolution capture.")
+            temp_cam = None
+            try:
+                temp_cam = Picamera2()
+                # Apply sensor modes to get max_res again for this instance if needed.
+                sensor_modes_temp = temp_cam.sensor_modes
+                if sensor_modes_temp:
+                     actual_max_res_temp = max(sensor_modes_temp, key=lambda m: m['size'][0] * m['size'][1])['size']
+                     if actual_max_res_temp != target_max_res:
+                         print(f"Temporary camera max res {actual_max_res_temp} differs from expected {target_max_res}. Using {actual_max_res_temp}")
+                         target_max_res = actual_max_res_temp
+                
+                still_config = temp_cam.create_still_configuration(
+                    main={"size": target_max_res, "format": "BGR888"},
+                    buffer_count=1 # For one-off capture, 1 buffer is fine
+                )
+
+                # Apply relevant parameters from self (brightness, contrast etc.) to the temporary camera's config
+                # This mimics _apply_camera_parameters but for a temporary configuration
+                controls_for_temp_cam = {}
+                gain = 1.0 + (self.brightness + 1.0) * 1.5 # self.brightness is from the Camera class
+                controls_for_temp_cam["AnalogueGain"] = max(1.0, min(temp_cam.camera_controls["AnalogueGain"][1], gain))
+                controls_for_temp_cam["Contrast"] = max(0.0, min(temp_cam.camera_controls["Contrast"][1], self.contrast))
+                controls_for_temp_cam["Saturation"] = max(0.0, min(temp_cam.camera_controls["Saturation"][1], self.saturation))
+                if self.exposure > 0:
+                    controls_for_temp_cam["ExposureTime"] = self.exposure
+                
+                if 'controls' not in still_config:
+                    still_config['controls'] = {}
+                still_config['controls'].update(controls_for_temp_cam)
+
+                print(f"Configuring temporary camera for still capture: {still_config}")
+                temp_cam.configure(still_config)
+                
+                temp_cam.start()
+                frame = temp_cam.capture_array("main") # Capture from "main" stream of still_config
+                print(f"Successfully captured {target_max_res} frame via one-off capture.")
+                temp_cam.stop()
+            except Exception as e:
+                print(f"Error during one-off high-resolution capture: {e}")
+                return None
+            finally:
+                if temp_cam:
+                    temp_cam.close()
+                    print("Closed temporary Picamera2 instance for one-off capture.")
+        
+        return frame 

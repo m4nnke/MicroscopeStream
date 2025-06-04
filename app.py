@@ -1,13 +1,17 @@
 from flask import Flask, render_template, Response, request, jsonify
 import os
 
-from camera import Camera
+from camera import Camera, DEFAULT_IDLE_CAMERA_FPS
 from stream_manager import StreamManager
 from storage_manager import StorageManager
 from timelapse_manager import TimelapseManager
 from config_manager import ConfigManager, PROCESSING_STRATEGIES # Import global PROCESSING_STRATEGIES
 
 app = Flask(__name__)
+
+# --- Global Configuration ---
+# DEFAULT_IDLE_CAMERA_FPS = 1/20  # Moved to camera.py
+# --- End Global Configuration ---
 
 # Initialize Configuration Manager
 config_manager = ConfigManager()
@@ -37,9 +41,10 @@ def update_camera_fps_based_on_outputs():
                 max_required_fps = max(max_required_fps, required_fps)
                 active_module_found = True
     
-    # If no active module requires a specific FPS, default to a low FPS (e.g., 1.0)
-    # The camera.update_capture_fps method itself handles 0 or negative by defaulting to 1.0
-    target_fps = max_required_fps if active_module_found and max_required_fps > 0 else 1.0
+    # If no active module requires a specific FPS, default to the defined IDLE FPS.
+    # The camera.update_capture_fps method itself handles 0 or negative by defaulting to 1.0, 
+    # but we provide our specific idle FPS here.
+    target_fps = max_required_fps if active_module_found and max_required_fps > 0 else DEFAULT_IDLE_CAMERA_FPS
     
     print(f"Updating camera FPS based on outputs. Max required: {max_required_fps}, Target FPS for camera: {target_fps}")
     camera.update_capture_fps(target_fps)

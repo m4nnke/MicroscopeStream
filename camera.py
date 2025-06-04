@@ -6,6 +6,10 @@ from picamera2 import Picamera2
 import libcamera
 from output_module import OutputModule
 
+# --- Global Configuration ---
+DEFAULT_IDLE_CAMERA_FPS = 1/20  # FPS when no modules are active (e.g., 1 frame every 20 seconds)
+# --- End Global Configuration ---
+
 class Camera:
     """Camera handling and frame capture using picamera2."""
     
@@ -16,7 +20,7 @@ class Camera:
         self.output_modules: List[OutputModule] = []
         
         # Camera settings
-        self.current_capture_fps = 1/20 # Default to 1/20 FPS, will be updated
+        self.current_capture_fps = DEFAULT_IDLE_CAMERA_FPS # Use the defined constant
         self.resolution = (1920, 1080)  # Default Full HD
         self.brightness = 0.0  # Range: -1.0 to 1.0
         self.contrast = 1.0    # Range: 0.0 to 4.0
@@ -29,34 +33,27 @@ class Camera:
             return False
             
         try:
-            # Initialize camera
             self.camera = Picamera2()
-            
-            # Create preview configuration
             preview_config = self.camera.create_preview_configuration(
                 main={"size": self.resolution, "format": "BGR888"},
-                buffer_count=2  # Use 2 buffers for better performance
+                buffer_count=2
             )
-            
-            # Configure camera transform (in case image needs to be flipped)
             preview_config["transform"] = libcamera.Transform(hflip=0, vflip=0)
-            
-            # Apply configuration (FrameDurationLimits will be set by _apply_camera_settings via update_capture_fps)
             self.camera.configure(preview_config)
             
-            # Apply initial camera controls
-            self._apply_camera_settings(self.current_capture_fps) # Apply with current_capture_fps
+            self._apply_camera_parameters() # Apply non-FPS settings
             
-            # Start camera
             self.camera.start()
+            print("Camera hardware started.")
 
-            self.camera.set_controls({"AeEnable": True})
+            # Apply FPS limits after camera has started
+            self._apply_camera_fps_limits(self.current_capture_fps)
+            print(f"Initial FPS limits applied: {self.current_capture_fps} FPS")
             
-            # Start capture thread
             self.is_running = True
             self.thread = threading.Thread(target=self._capture_frames, daemon=True)
             self.thread.start()
-            
+            print("Capture thread started.")
             return True
             
         except Exception as e:
@@ -141,48 +138,42 @@ class Camera:
                     
             last_frame_time = current_time
             
-    def _apply_camera_settings(self, target_fps: float):
-        """Apply current settings to the camera, including dynamic FPS."""
+    def _apply_camera_parameters(self):
+        """Apply non-FPS camera parameters like brightness, contrast, saturation."""
         if not self.camera:
             return
-            
         try:
-            # Create controls dictionary
             controls = {}
-            
-            # Frame rate control
+            gain = 1.0 + (self.brightness + 1.0) * 1.5
+            controls["AnalogueGain"] = max(1.0, min(4.0, gain))
+            controls["Contrast"] = max(0.0, min(4.0, self.contrast))
+            controls["Saturation"] = max(0.0, min(4.0, self.saturation))
+            self.camera.set_controls(controls)
+            print(f"Applied camera parameters: Brightness={self.brightness}, Contrast={self.contrast}, Saturation={self.saturation}")
+        except Exception as e:
+            print(f"Error applying camera parameters: {e}")
+
+    def _apply_camera_fps_limits(self, target_fps: float):
+        """Apply FPS-specific FrameDurationLimits to the camera."""
+        if not self.camera:
+            return
+        try:
+            controls = {}
             effective_fps = target_fps
-            if effective_fps <= 0: # Ensure FPS is positive for FrameDurationLimits
+            if effective_fps <= 0:
                 print(f"Target FPS is {effective_fps}, defaulting to 1.0 for FrameDurationLimits.")
                 effective_fps = 1.0
             
-            frame_time = int(1000000 / effective_fps)  # Convert fps to frame duration
+            frame_time = int(1000000 / effective_fps)
             controls["FrameDurationLimits"] = (frame_time, frame_time)
-            
-            # Exposure control
-       
-            controls["AeEnable"] = True  # Auto exposure
-
-            # Brightness control (maps to AnalogueGain)
-            # Map -1.0 to 1.0 to appropriate gain range (e.g., 1.0 to 4.0)
-            gain = 1.0 + (self.brightness + 1.0) * 1.5  # Maps to 1.0-4.0
-            controls["AnalogueGain"] = max(1.0, min(4.0, gain))
-            
-            # Contrast control
-            controls["Contrast"] = max(0.0, min(4.0, self.contrast))
-            
-            # Saturation control
-            controls["Saturation"] = max(0.0, min(4.0, self.saturation))
-            
-            # Apply controls
             self.camera.set_controls(controls)
-            
+            print(f"Applied FrameDurationLimits for {effective_fps} FPS (frame time: {frame_time} us)")
         except Exception as e:
-            print(f"Error applying camera settings: {e}")
+            print(f"Error applying FrameDurationLimits for {target_fps} FPS: {e}")
             
     def update_capture_fps(self, new_fps: float):
         """Updates the camera's capture FPS."""
-        if new_fps <= 0: # Ensure FPS is positive
+        if new_fps <= 0:
             print(f"Attempted to set invalid FPS: {new_fps}. Using 1.0 FPS instead.")
             new_fps = 1.0
 
@@ -190,7 +181,7 @@ class Camera:
             self.current_capture_fps = new_fps
             print(f"Camera capture FPS updated to: {self.current_capture_fps}")
             if self.camera and self.is_running:
-                self._apply_camera_settings(self.current_capture_fps)
+                self._apply_camera_fps_limits(self.current_capture_fps) # Only apply FPS limits
             
     def update_settings(self, **settings) -> bool:
         """Update camera settings."""
@@ -206,9 +197,8 @@ class Camera:
                 if width > 0 and height > 0:
                     self.resolution = new_resolution
                     updated = True
-                    restart_required = True # Resolution changes require camera restart
+                    restart_required = True 
                 
-        # Expecting UI values (0-100) and converting to internal camera control values
         if 'brightness_ui' in settings:
             new_brightness_internal = (float(settings['brightness_ui']) / 50.0) - 1.0
             if self.brightness != new_brightness_internal:
@@ -227,22 +217,15 @@ class Camera:
                 self.saturation = new_saturation_internal
                 updated = True
 
-        # if 'exposure_ui' in settings: # Placeholder for exposure UI if implemented
-        #     # Convert exposure_ui (e.g., EV steps or 0 for auto) to self.exposure (microseconds)
-        #     # Example: if settings['exposure_ui'] == 0: self.exposure = 0 else: self.exposure = convert_ev_to_microseconds(settings['exposure_ui'])
-        #     updated = True
-
         if restart_required and self.is_running:
             print("Camera restart required due to settings change.")
             self.stop()
             self.start()
-            # updated is already true if restart_required
-            return True # Return after restart
+            return True 
 
         if updated and self.camera and self.is_running:
-            print("Applying camera settings on-the-fly.")
-            # _apply_camera_settings is now called with target_fps
-            self._apply_camera_settings(self.current_capture_fps) 
+            print("Applying non-FPS camera settings on-the-fly.")
+            self._apply_camera_parameters() # Apply only non-FPS parameters
             
         return updated
         

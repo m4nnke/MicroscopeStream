@@ -110,4 +110,14 @@ class OutputModule(ABC):
     @abstractmethod
     def get_frame(self):
         """Get the next frame. Must be implemented by subclasses."""
+        pass
+
+    @abstractmethod
+    def get_required_camera_fps(self) -> float:
+        """Get the desired camera FPS for this output module.
+        
+        Returns:
+            float: The required FPS (e.g., 25.0 for a 25 FPS stream, or 0.2 for a 5-second timelapse).
+                   Returns 0.0 if the module is not active or has no specific requirement.
+        """
         pass 

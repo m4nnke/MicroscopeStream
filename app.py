@@ -23,12 +23,33 @@ camera.add_output_module(stream_manager)
 camera.add_output_module(storage_manager)
 camera.add_output_module(timelapse_manager)
 
+# List of all output modules that can influence camera FPS
+output_modules_for_fps = [stream_manager, storage_manager, timelapse_manager]
+
+def update_camera_fps_based_on_outputs():
+    """Calculates the max required FPS from all active modules and updates the camera."""
+    max_required_fps = 0.0
+    active_module_found = False
+    for module in output_modules_for_fps:
+        if module.is_running:
+            required_fps = module.get_required_camera_fps()
+            if required_fps > 0:
+                max_required_fps = max(max_required_fps, required_fps)
+                active_module_found = True
+    
+    # If no active module requires a specific FPS, default to a low FPS (e.g., 1.0)
+    # The camera.update_capture_fps method itself handles 0 or negative by defaulting to 1.0
+    target_fps = max_required_fps if active_module_found and max_required_fps > 0 else 1.0
+    
+    print(f"Updating camera FPS based on outputs. Max required: {max_required_fps}, Target FPS for camera: {target_fps}")
+    camera.update_capture_fps(target_fps)
+
 def apply_module_configurations():
     """Applies configurations from ConfigManager to all modules."""
     # Configure Camera
     cam_config = config_manager.get_camera_settings()
     camera.update_settings(
-        fps=cam_config['fps'],
+        # fps=cam_config['fps'], # FPS is now dynamic
         resolution=cam_config['resolution'],
         brightness_ui=cam_config['brightness_ui'], # Pass UI values, camera.update_settings handles conversion
         contrast_ui=cam_config['contrast_ui'],
@@ -56,6 +77,9 @@ def apply_module_configurations():
     timelapse_manager.min_frames = timelapse_config['min_frames']
     timelapse_manager.output_dir = timelapse_config['output_dir']
     timelapse_manager.set_processing_strategy(config_manager.get_processing_strategy("timelapse"))
+
+    # After all modules are configured, update camera FPS
+    update_camera_fps_based_on_outputs()
 
 # Apply initial configurations at startup
 apply_module_configurations()
@@ -132,11 +156,15 @@ def api_control(component, action):
         if hasattr(target_module, 'start'):
             success = target_module.start()
             message = f'{component.capitalize()} started.' if success else f'Failed to start {component}.'
+            if success:
+                update_camera_fps_based_on_outputs() # Update FPS after starting a module
         else: message = f"Component {component} cannot be started."
     elif action == 'stop':
         if hasattr(target_module, 'stop'):
             success = target_module.stop()
             message = f'{component.capitalize()} stopped.' if success else f'Failed to stop {component}.'
+            if success:
+                update_camera_fps_based_on_outputs() # Update FPS after stopping a module
         else: message = f"Component {component} cannot be stopped."
     
     if not success and not message.startswith("Failed"): # if action not start/stop

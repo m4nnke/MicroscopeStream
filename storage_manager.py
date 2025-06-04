@@ -83,3 +83,9 @@ class StorageManager(OutputModule):
             print("Video recording stopped: " + self.current_file)
 
         return True 
+
+    def get_required_camera_fps(self) -> float:
+        """Return the storage module's configured FPS if running, otherwise 0."""
+        if self.is_running:
+            return float(self.fps) # self.fps is from OutputModule base class
+        return 0.0 

@@ -160,3 +160,9 @@ class TimelapseManager(OutputModule):
 
         self.start_time = 0 # Reset start time as it's stopped
         return True 
+
+    def get_required_camera_fps(self) -> float:
+        """Return the required camera FPS based on the timelapse interval."""
+        if self.is_running and self.frame_interval > 0:
+            return 1.0 / self.frame_interval
+        return 0.0 

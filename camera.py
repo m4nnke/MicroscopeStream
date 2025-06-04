@@ -16,7 +16,7 @@ class Camera:
         self.output_modules: List[OutputModule] = []
         
         # Camera settings
-        self.fps = 10
+        self.current_capture_fps = 1.0 # Default to 1 FPS, will be updated
         self.resolution = (1920, 1080)  # Default Full HD
         self.brightness = 0.0  # Range: -1.0 to 1.0
         self.contrast = 1.0    # Range: 0.0 to 4.0
@@ -41,17 +41,11 @@ class Camera:
             # Configure camera transform (in case image needs to be flipped)
             preview_config["transform"] = libcamera.Transform(hflip=0, vflip=0)
             
-            # Set frame rate
-            frame_time = int(1000000 / self.fps)  # Convert fps to frame duration in microseconds
-            preview_config["controls"] = {
-                "FrameDurationLimits": (frame_time, frame_time)
-            }
-            
-            # Apply configuration
+            # Apply configuration (FrameDurationLimits will be set by _apply_camera_settings via update_capture_fps)
             self.camera.configure(preview_config)
             
             # Apply initial camera controls
-            self._apply_camera_settings()
+            self._apply_camera_settings(self.current_capture_fps) # Apply with current_capture_fps
             
             # Start camera
             self.camera.start()
@@ -108,21 +102,38 @@ class Camera:
     def _capture_frames(self):
         """Continuously capture frames and distribute to output modules."""
         last_frame_time = 0
-        frame_interval = 1.0 / self.fps
+        # frame_interval will be dynamic based on self.current_capture_fps
         
         while self.is_running and self.camera:
+            frame_interval = 1.0 / self.current_capture_fps
             current_time = time.time()
             elapsed = current_time - last_frame_time
             
             # Maintain FPS
             if elapsed < frame_interval:
-                time.sleep(min(frame_interval - elapsed, 1/(self.fps*1.5)))  # Small sleep to prevent CPU overuse
+                # Sleep for a short duration, ensuring it's positive
+                # and capped to avoid excessively long sleeps if fps is very low.
+                sleep_duration = frame_interval - elapsed
+                if self.current_capture_fps > 0: # Avoid division by zero
+                     time.sleep(max(0.001, min(sleep_duration, 1.0 / self.current_capture_fps)))
+                else: # If FPS is zero, perhaps a longer, but still capped sleep
+                    time.sleep(0.1)
+
                 continue
                 
             # Capture frame
-            frame = self.camera.capture_array("main")
-            print("Frame captured", (current_time - last_frame_time)*self.fps)
-            
+            try:
+                frame = self.camera.capture_array("main")
+                print(f"Frame captured at {current_time}, interval: {elapsed:.4f}s, target_fps: {self.current_capture_fps}")
+            except Exception as e:
+                print(f"Error capturing frame: {e}")
+                # Attempt to recover or log error, possibly break loop if critical
+                if "Camera has been stopped" in str(e) or "Camera is not streaming" in str(e):
+                    print("Camera appears to be stopped or not streaming. Stopping capture.")
+                    self.is_running = False # Stop the loop
+                time.sleep(0.1) # Avoid busy-looping on error
+                continue
+
             # Distribute frame to all active output modules
             for module in self.output_modules:
                 if module.is_running and module.should_process_frame():
@@ -130,8 +141,8 @@ class Camera:
                     
             last_frame_time = current_time
             
-    def _apply_camera_settings(self):
-        """Apply current settings to the camera."""
+    def _apply_camera_settings(self, target_fps: float):
+        """Apply current settings to the camera, including dynamic FPS."""
         if not self.camera:
             return
             
@@ -140,7 +151,12 @@ class Camera:
             controls = {}
             
             # Frame rate control
-            frame_time = int(1000000 / self.fps)  # Convert fps to frame duration
+            effective_fps = target_fps
+            if effective_fps <= 0: # Ensure FPS is positive for FrameDurationLimits
+                print(f"Target FPS is {effective_fps}, defaulting to 1.0 for FrameDurationLimits.")
+                effective_fps = 1.0
+            
+            frame_time = int(1000000 / effective_fps)  # Convert fps to frame duration
             controls["FrameDurationLimits"] = (frame_time, frame_time)
             
             # Exposure control
@@ -164,18 +180,24 @@ class Camera:
         except Exception as e:
             print(f"Error applying camera settings: {e}")
             
+    def update_capture_fps(self, new_fps: float):
+        """Updates the camera's capture FPS."""
+        if new_fps <= 0: # Ensure FPS is positive
+            print(f"Attempted to set invalid FPS: {new_fps}. Using 1.0 FPS instead.")
+            new_fps = 1.0
+
+        if self.current_capture_fps != new_fps:
+            self.current_capture_fps = new_fps
+            print(f"Camera capture FPS updated to: {self.current_capture_fps}")
+            if self.camera and self.is_running:
+                self._apply_camera_settings(self.current_capture_fps)
+            
     def update_settings(self, **settings) -> bool:
         """Update camera settings."""
         updated = False
         restart_required = False
         
-        if 'fps' in settings and settings['fps'] > 0:
-            if self.fps != settings['fps']:
-                self.fps = settings['fps']
-                updated = True
-                # FPS changes that affect FrameDurationLimits might need restart or reconfiguration
-                # For now, assuming _apply_camera_settings is sufficient if camera is running.
-                # If not, a restart might be needed here.
+        # FPS is no longer set directly here, handled by update_capture_fps
             
         if 'resolution' in settings:
             new_resolution = tuple(settings['resolution'])
@@ -219,7 +241,8 @@ class Camera:
 
         if updated and self.camera and self.is_running:
             print("Applying camera settings on-the-fly.")
-            self._apply_camera_settings()
+            # _apply_camera_settings is now called with target_fps
+            self._apply_camera_settings(self.current_capture_fps) 
             
         return updated
         
@@ -237,7 +260,7 @@ class Camera:
             exposure_ui = int(np.log2(self.exposure / 1000))
             
         return {
-            'fps': self.fps,
+            # 'fps': self.fps, # FPS removed
             'resolution': self.resolution,
             'brightness': brightness_ui,
             'contrast': contrast_ui,

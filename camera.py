@@ -158,16 +158,27 @@ class Camera:
             
     def _apply_camera_parameters(self):
         """Apply non-FPS camera parameters like brightness, contrast, saturation."""
-        if not self.camera:
+        if not self.camera or not hasattr(self.camera, 'camera_controls') or not self.camera.camera_controls:
+            print("Camera or camera_controls not available for applying parameters.")
             return
         try:
             controls = {}
-            gain = 1.0 + (self.brightness + 1.0) * 1.5
-            controls["AnalogueGain"] = max(1.0, min(4.0, gain))
-            controls["Contrast"] = max(0.0, min(4.0, self.contrast))
-            controls["Saturation"] = max(0.0, min(4.0, self.saturation))
+
+            # Brightness: self.brightness is -1.0 to 1.0 (from UI 0-100)
+            min_br, max_br, _def_br = self.camera.camera_controls.get("Brightness", (-1.0, 1.0, 0.0))
+            controls["Brightness"] = max(min_br, min(max_br, self.brightness))
+
+            # Contrast: self.contrast is 0.0 to 4.0 (from UI 0-100 / 25.0)
+            min_co, max_co, _def_co = self.camera.camera_controls.get("Contrast", (0.0, 4.0, 1.0)) # Default to 0-4 if not found, though it should be
+            controls["Contrast"] = max(min_co, min(max_co, self.contrast))
+
+            # Saturation: self.saturation is 0.0 to 4.0 (from UI 0-100 / 25.0)
+            min_sa, max_sa, _def_sa = self.camera.camera_controls.get("Saturation", (0.0, 4.0, 1.0)) # Default to 0-4 if not found
+            controls["Saturation"] = max(min_sa, min(max_sa, self.saturation))
+            
             self.camera.set_controls(controls)
-            print(f"Applied camera parameters: Brightness={self.brightness}, Contrast={self.contrast}, Saturation={self.saturation}")
+            print(f"Applied camera parameters via set_controls: Brightness={controls['Brightness']:.2f} (raw self.brightness: {self.brightness:.2f}), Contrast={controls['Contrast']:.2f}, Saturation={controls['Saturation']:.2f}")
+
         except Exception as e:
             print(f"Error applying camera parameters: {e}")
 
@@ -352,12 +363,19 @@ class Camera:
                 # Apply current non-FPS parameters to the still_config's controls
                 # This helps maintain brightness, contrast etc. for the still shot
                 current_params_for_still = {}
-                gain = 1.0 + (self.brightness + 1.0) * 1.5
-                current_params_for_still["AnalogueGain"] = max(1.0, min(self.camera.camera_controls["AnalogueGain"][1], gain)) # ensure within reported limits
+                # Always apply contrast and saturation from current settings
                 current_params_for_still["Contrast"] = max(0.0, min(self.camera.camera_controls["Contrast"][1], self.contrast))
                 current_params_for_still["Saturation"] = max(0.0, min(self.camera.camera_controls["Saturation"][1], self.saturation))
-                if self.exposure > 0: # if exposure is not auto
-                     current_params_for_still["ExposureTime"] = self.exposure
+
+                if self.exposure > 0: # If manual exposure is set for the stream
+                    gain = 1.0 + (self.brightness + 1.0) * 1.5
+                    # Ensure gain is within the camera's reported valid range for AnalogueGain
+                    min_gain_cam, max_gain_cam = self.camera.camera_controls["AnalogueGain"]
+                    current_params_for_still["AnalogueGain"] = max(min_gain_cam, min(max_gain_cam, gain))
+                    current_params_for_still["ExposureTime"] = self.exposure
+                # Else (self.exposure == 0, auto-exposure for stream):
+                #   Do not set AnalogueGain or ExposureTime for the still.
+                #   Rely on the camera's auto-exposure/auto-gain for the still capture.
                 
                 # Merge these with any controls already in still_config (like FrameDurationLimits)
                 if 'controls' not in still_config:
@@ -396,12 +414,17 @@ class Camera:
                 # Apply relevant parameters from self (brightness, contrast etc.) to the temporary camera's config
                 # This mimics _apply_camera_parameters but for a temporary configuration
                 controls_for_temp_cam = {}
-                gain = 1.0 + (self.brightness + 1.0) * 1.5 # self.brightness is from the Camera class
-                controls_for_temp_cam["AnalogueGain"] = max(1.0, min(temp_cam.camera_controls["AnalogueGain"][1], gain))
+                # Always apply contrast and saturation
                 controls_for_temp_cam["Contrast"] = max(0.0, min(temp_cam.camera_controls["Contrast"][1], self.contrast))
                 controls_for_temp_cam["Saturation"] = max(0.0, min(temp_cam.camera_controls["Saturation"][1], self.saturation))
-                if self.exposure > 0:
+
+                if self.exposure > 0: # If manual exposure was configured on the main Camera object
+                    gain = 1.0 + (self.brightness + 1.0) * 1.5 # self.brightness is from the Camera class
+                    min_gain_cam, max_gain_cam = temp_cam.camera_controls["AnalogueGain"]
+                    controls_for_temp_cam["AnalogueGain"] = max(min_gain_cam, min(max_gain_cam, gain))
                     controls_for_temp_cam["ExposureTime"] = self.exposure
+                # Else (self.exposure == 0):
+                #   Rely on temp_cam's default auto-exposure/auto-gain.
                 
                 if 'controls' not in still_config:
                     still_config['controls'] = {}

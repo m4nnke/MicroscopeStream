@@ -294,7 +294,15 @@
         async function controlModuleAPI(component, action) {
             try {
                 const data = await fetchAPI(`/api/control/${component}/${action}`, { method: 'POST' });
-                if (data.success) { showStatusPopup(data.message, 'success'); await fetchStatusAPI(); }
+                if (data.success) {
+                    showStatusPopup(data.message, 'success');
+                    await fetchStatusAPI(); 
+                    if (component === 'stream' && action === 'start') {
+                        const videoElement = document.getElementById('videoFeed');
+                        // Add a timestamp to force reload the MJPEG stream
+                        videoElement.src = "{{ url_for('video_feed') }}?timestamp=" + new Date().getTime(); 
+                    }
+                }
             } catch (error) { /* Handled by fetchAPI */ }
         }
         async function fetchStatusAPI() {

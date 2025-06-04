@@ -6,6 +6,10 @@ from picamera2 import Picamera2
 import libcamera
 from output_module import OutputModule
 
+# --- Global Configuration ---
+DEFAULT_IDLE_CAMERA_FPS = 1/20  # FPS when no modules are active (e.g., 1 frame every 20 seconds)
+# --- End Global Configuration ---
+
 class Camera:
     """Camera handling and frame capture using picamera2."""
     
@@ -16,7 +20,7 @@ class Camera:
         self.output_modules: List[OutputModule] = []
         
         # Camera settings
-        self.current_capture_fps = 1/20 # Default to 1/20 FPS, will be updated
+        self.current_capture_fps = DEFAULT_IDLE_CAMERA_FPS # Use the defined constant
         self.resolution = (1920, 1080)  # Default Full HD
         self.brightness = 0.0  # Range: -1.0 to 1.0
         self.contrast = 1.0    # Range: 0.0 to 4.0

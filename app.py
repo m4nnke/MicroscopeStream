@@ -1,4 +1,4 @@
-from flask import Flask, render_template, Response, request, jsonify, send_file
+from flask import Flask, render_template, Response, request, jsonify, send_file, send_from_directory
 import os
 import cv2
 import io
@@ -91,6 +91,8 @@ def apply_module_configurations():
 
 # Apply initial configurations at startup
 apply_module_configurations()
+
+STILLS_DIR = "stills" # Define the directory for storing stills
 
 @app.route('/')
 def index():
@@ -212,21 +214,36 @@ def list_timelapses():
 
 @app.route('/capture_high_res_still')
 def capture_high_res_still():
-    """Captures a still image at maximum resolution and returns it as a download."""
+    """Captures a still image at maximum resolution, saves it, and returns it as a download."""
     frame = camera.capture_still_at_max_resolution()
     if frame is not None:
         try:
+            # Ensure stills directory exists
+            os.makedirs(STILLS_DIR, exist_ok=True)
+
             # Encode frame to JPEG
-            success, encoded_image = cv2.imencode('.jpg', frame)
+            success, encoded_image_data = cv2.imencode('.jpg', frame)
             if not success:
                 return jsonify({"success": False, "message": "Failed to encode image to JPEG."}), 500
             
-            # Create a BytesIO object from the encoded image
-            image_io = io.BytesIO(encoded_image.tobytes())
-            
+            encoded_image_bytes = encoded_image_data.tobytes()
+
             # Generate a filename with timestamp
             timestamp = time.strftime("%Y%m%d-%H%M%S")
             filename = f"high_res_still_{timestamp}.jpg"
+            filepath = os.path.join(STILLS_DIR, filename)
+
+            # Save the image to the stills directory
+            try:
+                with open(filepath, 'wb') as f:
+                    f.write(encoded_image_bytes)
+                print(f"High-resolution still saved to {filepath}")
+            except Exception as e:
+                print(f"Error saving high-resolution still to file: {e}")
+                # Continue to attempt to send for download even if saving fails, but log it.
+
+            # Create a BytesIO object for sending the file
+            image_io = io.BytesIO(encoded_image_bytes)
             
             return send_file(
                 image_io,
@@ -239,6 +256,34 @@ def capture_high_res_still():
             return jsonify({"success": False, "message": f"Error processing image: {str(e)}"}), 500
     else:
         return jsonify({"success": False, "message": "Failed to capture high-resolution still image."}), 500
+
+@app.route('/api/stills_list')
+def list_stills():
+    """List all saved still images."""
+    stills = []
+    if os.path.exists(STILLS_DIR):
+        try:
+            # Sort by name, which includes timestamp, so newest first if using YYYYMMDD format
+            stills = sorted([f for f in os.listdir(STILLS_DIR) if f.lower().endswith('.jpg')], reverse=True)
+        except Exception as e:
+            print(f"Error listing stills directory {STILLS_DIR}: {e}")
+            return jsonify({'success': False, 'message': 'Error listing stills'}), 500
+    return jsonify({'stills': stills, 'success': True})
+
+# --- Download Routes ---
+@app.route('/download/recording/<path:filename>')
+def download_recording(filename):
+    recordings_dir = config_manager.get_storage_settings().get("output_dir", "recordings")
+    return send_from_directory(directory=recordings_dir, path=filename, as_attachment=True)
+
+@app.route('/download/timelapse/<path:filename>')
+def download_timelapse(filename):
+    timelapses_dir = config_manager.get_timelapse_settings().get("output_dir", "timelapses")
+    return send_from_directory(directory=timelapses_dir, path=filename, as_attachment=True)
+
+@app.route('/download/still/<path:filename>')
+def download_still(filename):
+    return send_from_directory(directory=STILLS_DIR, path=filename, as_attachment=True)
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True) 

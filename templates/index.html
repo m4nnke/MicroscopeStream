@@ -221,6 +221,10 @@
             <h2 style="margin-top:20px;">Timelapses</h2>
             <button id="refreshTimelapses" style="margin-bottom:5px;">Refresh</button>
             <ul id="timelapsesList"></ul>
+
+            <h2 style="margin-top:20px;">Stills</h2>
+            <button id="refreshStills" style="margin-bottom:5px;">Refresh</button>
+            <ul id="stillsList"></ul>
         </div>
     </div>
 
@@ -315,7 +319,16 @@
                 const data = await fetchAPI('/recordings');
                 const list = document.getElementById('recordingsList'); list.innerHTML = ''; 
                 if (data.recordings && data.recordings.length > 0) {
-                    data.recordings.forEach(r => { const li = document.createElement('li'); li.textContent = r; list.appendChild(li); });
+                    data.recordings.forEach(r => { 
+                        const li = document.createElement('li'); 
+                        const a = document.createElement('a');
+                        a.href = `/download/recording/${r}`;
+                        a.textContent = r;
+                        a.style.textDecoration = 'underline'; a.style.cursor = 'pointer';
+                        // a.download = r; // Useful if not using as_attachment=True on server
+                        li.appendChild(a);
+                        list.appendChild(li); 
+                    });
                 } else { list.innerHTML = '<li>No recordings.</li>'; }
             } catch (error) { /* Handled by fetchAPI */ }
         }
@@ -324,9 +337,39 @@
                 const data = await fetchAPI('/timelapses');
                 const list = document.getElementById('timelapsesList'); list.innerHTML = '';
                 if (data.timelapses && data.timelapses.length > 0) {
-                    data.timelapses.forEach(l => { const li = document.createElement('li'); li.textContent = l; list.appendChild(li); });
+                    data.timelapses.forEach(l => { 
+                        const li = document.createElement('li');
+                        const a = document.createElement('a');
+                        a.href = `/download/timelapse/${l}`;
+                        a.textContent = l;
+                        a.style.textDecoration = 'underline'; a.style.cursor = 'pointer';
+                        li.appendChild(a);
+                        list.appendChild(li); 
+                    });
                 } else { list.innerHTML = '<li>No timelapses.</li>'; }
             } catch (error) { /* Handled by fetchAPI */ }
+        }
+        async function fetchStills() {
+            try {
+                const data = await fetchAPI('/api/stills_list');
+                const list = document.getElementById('stillsList'); list.innerHTML = '';
+                if (data.success && data.stills && data.stills.length > 0) {
+                    data.stills.forEach(s => { 
+                        const li = document.createElement('li'); 
+                        const a = document.createElement('a');
+                        a.href = `/download/still/${s}`;
+                        a.textContent = s;
+                        a.style.textDecoration = 'underline'; a.style.cursor = 'pointer';
+                        li.appendChild(a);
+                        list.appendChild(li); 
+                    });
+                } else if (data.success) { 
+                    list.innerHTML = '<li>No stills.</li>'; 
+                } else {
+                    list.innerHTML = '<li>Error loading stills.</li>'; 
+                    showStatusPopup(data.message || 'Could not load stills.', 'error');
+                }
+            } catch (error) { list.innerHTML = '<li>Error loading stills.</li>'; /* Handled by fetchAPI */ }
         }
 
         // --- UI POPULATION ---
@@ -406,6 +449,7 @@
             document.getElementById('applyAllSettings').addEventListener('click', updateSettingsAPI);
             document.getElementById('refreshRecordings').addEventListener('click', fetchRecordings);
             document.getElementById('refreshTimelapses').addEventListener('click', fetchTimelapses);
+            document.getElementById('refreshStills').addEventListener('click', fetchStills);
         }
 
         // --- INITIALIZATION ---
@@ -415,7 +459,7 @@
                 showStatusPopup("Error loading initial page data. Refresh.",'error',0); console.error("Initial data error."); return;
             }
             populateUISettings(currentSettings); populateUIStatus(currentStatus);
-            setupEventListeners(); fetchRecordings(); fetchTimelapses();
+            setupEventListeners(); fetchRecordings(); fetchTimelapses(); fetchStills();
             setInterval(fetchStatusAPI, 5000); 
             const videoEl = document.getElementById('videoFeed');
             videoEl.onerror = () => {

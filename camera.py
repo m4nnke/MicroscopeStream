@@ -190,16 +190,29 @@ class Camera:
             print(f"Error applying FrameDurationLimits for {target_fps} FPS: {e}")
             
     def update_capture_fps(self, new_fps: float):
-        """Updates the camera's capture FPS."""
+        """Updates the camera's capture FPS.
+        If the camera is running and FPS changes, it will restart the camera
+        to apply the new FPS settings effectively."""
         if new_fps <= 0:
             print(f"Attempted to set invalid FPS: {new_fps}. Using 1.0 FPS instead.")
             new_fps = 1.0
 
         if self.current_capture_fps != new_fps:
-            self.current_capture_fps = new_fps
-            print(f"Camera capture FPS updated to: {self.current_capture_fps}")
-            if self.camera and self.is_running:
-                self._apply_camera_fps_limits(self.current_capture_fps) # Only apply FPS limits
+            old_fps = self.current_capture_fps
+            self.current_capture_fps = new_fps # Update the target FPS
+            
+            if self.is_running and self.camera: # If camera is active, restart it
+                print(f"Camera capture FPS changed from {old_fps} to: {self.current_capture_fps}. Restarting camera to apply.")
+                self.stop()
+                # A small delay might sometimes be beneficial for resources to fully release,
+                # though Picamera2's stop/start cycle should ideally manage this.
+                # time.sleep(0.5) # Consider testing if this adds stability if issues arise.
+                self.start() # This will re-initialize with the new self.current_capture_fps
+            else:
+                # If camera is not running, just update the value. self.start() will pick it up when called.
+                print(f"Camera is not running. Capture FPS set to {self.current_capture_fps} for next start.")
+        # else:
+            # print(f"Camera FPS already at {new_fps}. No change needed.") # Optional: for debugging
             
     def update_settings(self, **settings) -> bool:
         """Update camera settings."""
@@ -353,7 +366,7 @@ class Camera:
                 
                 print(f"Configuring for still capture: {still_config}")
 
-                frame = self.camera.switch_mode_and_capture_array(still_config, stream_name="main")
+                frame = self.camera.switch_mode_and_capture_array(still_config, "main")
                 print(f"Successfully captured {target_max_res} frame via switch_mode_and_capture_array.")
             except Exception as e:
                 print(f"Error during switch_mode_and_capture_array: {e}")

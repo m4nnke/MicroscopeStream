@@ -212,47 +212,33 @@ def list_timelapses():
         lapses = sorted([f for f in os.listdir(timelapses_dir) if f.endswith('.mp4')], reverse=True)
     return jsonify({'timelapses': lapses})
 
-@app.route('/capture_high_res_still')
+@app.route('/capture_high_res_still', methods=['POST'])
 def capture_high_res_still():
-    """Captures a still image at maximum resolution, saves it, and returns it as a download."""
+    """Captures a still image at maximum resolution and saves it."""
     frame = camera.capture_still_at_max_resolution()
     if frame is not None:
         try:
-            # Ensure stills directory exists
             os.makedirs(STILLS_DIR, exist_ok=True)
-
-            # Encode frame to JPEG
             success, encoded_image_data = cv2.imencode('.jpg', frame)
             if not success:
                 return jsonify({"success": False, "message": "Failed to encode image to JPEG."}), 500
             
             encoded_image_bytes = encoded_image_data.tobytes()
-
-            # Generate a filename with timestamp
             timestamp = time.strftime("%Y%m%d-%H%M%S")
             filename = f"high_res_still_{timestamp}.jpg"
             filepath = os.path.join(STILLS_DIR, filename)
 
-            # Save the image to the stills directory
             try:
                 with open(filepath, 'wb') as f:
                     f.write(encoded_image_bytes)
                 print(f"High-resolution still saved to {filepath}")
+                return jsonify({"success": True, "message": f"Still image saved as {filename}", "filename": filename})
             except Exception as e:
                 print(f"Error saving high-resolution still to file: {e}")
-                # Continue to attempt to send for download even if saving fails, but log it.
+                return jsonify({"success": False, "message": f"Error saving still image: {str(e)}"}), 500
 
-            # Create a BytesIO object for sending the file
-            image_io = io.BytesIO(encoded_image_bytes)
-            
-            return send_file(
-                image_io,
-                mimetype='image/jpeg',
-                as_attachment=True,
-                download_name=filename
-            )
         except Exception as e:
-            print(f"Error processing or sending high-res still: {e}")
+            print(f"Error processing high-res still: {e}")
             return jsonify({"success": False, "message": f"Error processing image: {str(e)}"}), 500
     else:
         return jsonify({"success": False, "message": "Failed to capture high-resolution still image."}), 500

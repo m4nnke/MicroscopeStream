@@ -450,8 +450,20 @@
             document.getElementById('refreshRecordings').addEventListener('click', fetchRecordings);
             document.getElementById('refreshTimelapses').addEventListener('click', fetchTimelapses);
             document.getElementById('refreshStills').addEventListener('click', fetchStills);
-            document.getElementById('captureStillButton').addEventListener('click', () => {
-                window.open("{{ url_for('capture_high_res_still') }}", '_blank');
+            document.getElementById('captureStillButton').addEventListener('click', async () => {
+                try {
+                    const data = await fetchAPI("{{ url_for('capture_high_res_still') }}", { method: 'POST' });
+                    if (data.success) {
+                        showStatusPopup(data.message || 'Still captured successfully!', 'success');
+                        fetchStills(); // Refresh the stills list
+                    } else {
+                        // Error already shown by fetchAPI, but we can add a specific one if needed
+                        // showStatusPopup(data.message || 'Failed to capture still.', 'error');
+                    }
+                } catch (error) {
+                    // Error already shown by fetchAPI
+                    console.error("Error capturing still:", error);
+                }
             });
         }
 

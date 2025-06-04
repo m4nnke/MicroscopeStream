@@ -78,10 +78,25 @@ class ConfigManager:
         """
         Update settings. new_settings is a dict that can be partial.
         It will be merged into the existing settings.
+        Also ensures camera FPS is sufficient for output modules.
         """
         # Deep update for camera, stream, storage, timelapse
         for key in ["camera", "stream", "storage", "timelapse"]:
             if key in new_settings:
+                # Ensure FPS/Interval values are positive before updating
+                if key == "camera" and "fps" in new_settings[key] and new_settings[key]["fps"] <= 0:
+                    print(f"Warning: Invalid camera FPS ({new_settings[key]['fps']}) provided. Ignoring.")
+                    new_settings[key].pop("fps") # Remove invalid FPS to keep current or let auto-adjust
+                elif key == "stream" and "fps" in new_settings[key] and new_settings[key]["fps"] <= 0:
+                    print(f"Warning: Invalid stream FPS ({new_settings[key]['fps']}) provided. Ignoring.")
+                    new_settings[key].pop("fps")
+                elif key == "storage" and "fps" in new_settings[key] and new_settings[key]["fps"] <= 0:
+                    print(f"Warning: Invalid storage FPS ({new_settings[key]['fps']}) provided. Ignoring.")
+                    new_settings[key].pop("fps")
+                elif key == "timelapse" and "interval" in new_settings[key] and new_settings[key]["interval"] <= 0:
+                    print(f"Warning: Invalid timelapse interval ({new_settings[key]['interval']}) provided. Ignoring.")
+                    new_settings[key].pop("interval")
+
                 self.settings[key].update(new_settings[key])
         
         # Special handling for camera brightness/contrast/saturation UI values
@@ -99,15 +114,37 @@ class ConfigManager:
             # Add exposure_ui to exposure mapping if needed
 
         # Update FPS dependent values for storage
-        if "storage" in new_settings and "fps" in new_settings["storage"]:
-            fps = self.settings["storage"]["fps"]
-            if fps > 0:
-                 self.settings["storage"]["frame_interval"] = 1.0 / fps
-            else:
-                self.settings["storage"]["frame_interval"] = 1.0 # Default to 1 if fps is invalid
+        if "storage" in self.settings and self.settings["storage"]["fps"] > 0:
+            self.settings["storage"]["frame_interval"] = 1.0 / self.settings["storage"]["fps"]
+        elif "storage" in self.settings: # If fps became 0 or invalid
+             self.settings["storage"]["frame_interval"] = 1.0 # Default to 1 to avoid division by zero
+
+        # Ensure camera FPS is sufficient for all output modules
+        max_output_fps = 0
+        
+        # Stream FPS
+        if self.settings["stream"]["fps"] > 0:
+            max_output_fps = max(max_output_fps, self.settings["stream"]["fps"])
+        
+        # Storage FPS
+        if self.settings["storage"]["fps"] > 0:
+            max_output_fps = max(max_output_fps, self.settings["storage"]["fps"])
             
-        # Note: Timelapse interval directly controls its capture rate,
-        # its 'fps' for the OutputModule base class will be 1.0 / interval
+        # Timelapse effective FPS
+        timelapse_interval = self.settings["timelapse"]["interval"]
+        if timelapse_interval > 0:
+            timelapse_fps = 1.0 / timelapse_interval
+            max_output_fps = max(max_output_fps, timelapse_fps)
+
+        if max_output_fps > 0 and self.settings["camera"]["fps"] < max_output_fps:
+            print(f"Adjusting camera FPS from {self.settings['camera']['fps']} to {max_output_fps} to meet output module demand.")
+            self.settings["camera"]["fps"] = max_output_fps
+        elif self.settings["camera"]["fps"] <= 0 and max_output_fps > 0: # If camera FPS was invalid, set it to max_output_fps
+            print(f"Setting camera FPS to {max_output_fps} (was invalid) to meet output module demand.")
+            self.settings["camera"]["fps"] = max_output_fps
+        elif self.settings["camera"]["fps"] <= 0: # If all FPS are 0 or invalid, default camera FPS
+             print(f"Warning: Camera FPS is invalid ({self.settings['camera']['fps']}) and no valid output FPS. Setting camera FPS to 1.")
+             self.settings["camera"]["fps"] = 1
 
         # We could add more validation or callbacks here if needed
         return True 

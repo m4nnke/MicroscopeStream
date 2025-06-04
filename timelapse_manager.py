@@ -3,6 +3,7 @@ import os
 import time
 from datetime import datetime
 from output_module import OutputModule
+import queue # For specific exception handling
 
 class TimelapseManager(OutputModule):
     """Handles timelapse capture and video creation."""
@@ -10,108 +11,158 @@ class TimelapseManager(OutputModule):
     def __init__(self, name="timelapse", output_dir="timelapses"):
         super().__init__(name)
         self.output_dir = output_dir
-        self.interval = 1  # Default: 1 second between frames
-        self.duration = 300  # Default: 5 minutes
-        self.min_frames = 100  # Minimum frames before creating video
-        self.frames = []
-        self.last_capture_time = 0
-        self.start_time = 0
+        # These will be configured by app.py via ConfigManager
+        self.interval: float = 1.0  # Capture interval in seconds (also self.frame_interval in base class)
+        self.duration: int = 300    # Timelapse duration in seconds
+        self.min_frames: int = 10   # Min frames to create video
         
-        # Create output directory if it doesn't exist
-        os.makedirs(output_dir, exist_ok=True)
+        self.frames = [] # Stores collected (and processed) frames
+        self.start_time = 0 # Timestamp when current timelapse capture started
         
+        # Output directory creation is handled by _create_timelapse or ensured by app.py
+        
+    def start(self) -> bool:
+        """Start the timelapse capture, clearing previous frames."""
+        if not super().start():
+            return False
+        self.frames = [] # Clear any old frames
+        self.start_time = time.time()
+        print(f"TimelapseManager {self.name} started. Interval: {self.frame_interval}s, Duration: {self.duration}s")
+        return True
+
     def process_frames(self):
         """Process frames from the queue for timelapse."""
-        self.start_time = time.time()
+        # self.start_time is set in self.start()
         
         while self.is_running:
             try:
-                frame = self.frame_queue.get(timeout=1.0)
+                original_frame = self.frame_queue.get(timeout=1.0) # Wait for a frame
+                if original_frame is None:
+                    continue
 
-                self.frames.append(frame.copy())
-                self.last_frame = frame
-                self.last_capture_time = current_time
-                    
+                # Apply image processing strategy from the base class
+                processed_frame = self.process_frame(original_frame)
+                
+                self.frames.append(processed_frame.copy()) # Add processed frame
+                self.last_frame = processed_frame # For get_frame()
+
                 # Check if we should create a video
-                if (len(self.frames) >= self.min_frames or 
-                    current_time - self.start_time >= self.duration):
+                current_time = time.time()
+                if (self.duration > 0 and current_time - self.start_time >= self.duration) or \
+                   (self.min_frames > 0 and len(self.frames) >= self.min_frames and not self.is_running): # Create if stopped and min_frames met
                     self._create_timelapse()
                         
-            except:
+            except queue.Empty:
+                # This means no frame was available within the timeout.
+                # Check if duration is met even if no new frame arrived, if is_running is false.
+                if not self.is_running and self.start_time > 0: # if stopped
+                    if (self.duration > 0 and time.time() - self.start_time >= self.duration) or \
+                       (self.min_frames > 0 and len(self.frames) >= self.min_frames):
+                        self._create_timelapse()
+                continue # Continue waiting or exit if not running
+            except Exception as e:
+                print(f"Error in TimelapseManager process_frames: {e}")
                 continue
                 
     def get_frame(self):
-        """Get the latest captured frame."""
+        """Get the latest captured (and processed) frame."""
         return self.last_frame
         
     def _create_timelapse(self):
         """Create a timelapse video from captured frames."""
-        if not self.frames:
+        if not self.frames or len(self.frames) < self.min_frames:
+            if self.frames: # if some frames but not enough, and we are told to create
+                 print(f"Timelapse {self.name}: Not enough frames ({len(self.frames)}/{self.min_frames}) to create video. Discarding.")
+            self.frames = [] # Clear frames anyway
+            self.start_time = 0 # Reset start time
             return
+
+        # Ensure output directory exists
+        if not os.path.exists(self.output_dir):
+            os.makedirs(self.output_dir, exist_ok=True)
             
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"timelapse_{timestamp}.mp4"
         output_path = os.path.join(self.output_dir, filename)
         
-        # Get frame dimensions from first frame
+        # Get frame dimensions from first frame (should all be same)
         height, width = self.frames[0].shape[:2]
         
-        # Create video writer
-        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-        writer = cv2.VideoWriter(
-            output_path,
-            fourcc,
-            25,  # Output FPS
-            (width, height)
-        )
+        # Video writer FPS - could be configurable
+        output_fps = 25 
         
-        # Write frames
-        for frame in self.frames:
-            writer.write(frame)
+        print(f"Timelapse {self.name}: Creating video {output_path} with {len(self.frames)} frames at {output_fps} FPS.")
+        
+        try:
+            fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+            writer = cv2.VideoWriter(
+                output_path,
+                fourcc,
+                output_fps, 
+                (width, height)
+            )
             
-        writer.release()
-        print("Timelapse video created: " + output_path)
+            for frame_to_write in self.frames:
+                writer.write(frame_to_write)
+            
+            writer.release()
+            print(f"Timelapse {self.name}: Video created successfully: {output_path}")
+        except Exception as e:
+            print(f"Timelapse {self.name}: Error creating video {output_path}: {e}")
         
-        # Clear frames after creating video
-        self.frames = []
-        self.start_time = time.time()
+        self.frames = [] # Clear frames after creating video
+        self.start_time = time.time() if self.is_running else 0 # Reset start time only if still running
         
     def get_status(self) -> dict:
         """Get current timelapse status."""
         current_time = time.time()
+        
+        next_capture_in = 0
+        if self.is_running and self.last_frame_time > 0: # last_frame_time from OutputModule
+            next_capture_in = max(0, self.frame_interval - (current_time - self.last_frame_time))
+
+        next_video_in = 0
+        if self.is_running and self.start_time > 0 and self.duration > 0:
+            next_video_in = max(0, self.duration - (current_time - self.start_time))
+            
         return {
             'current_frames': len(self.frames),
-            'next_capture_in': max(0, self.interval - (current_time - self.last_capture_time)),
-            'next_video_in': max(0, self.duration - (current_time - self.start_time)),
-            'interval': self.interval,
+            'interval': self.frame_interval, # This is the actual capture interval
             'duration': self.duration,
-            'min_frames': self.min_frames
+            'min_frames': self.min_frames,
+            'output_dir': self.output_dir,
+            'next_capture_in': round(next_capture_in, 2),
+            'next_video_in': round(next_video_in, 2),
+            'time_elapsed': round(current_time - self.start_time if self.start_time > 0 else 0, 2)
         }
         
-    def update_settings(self, **settings) -> bool:
-        """Update timelapse settings."""
-        updated = False
-        
-        if 'interval' in settings and settings['interval'] > 0:
-            self.interval = settings['interval']
-            updated = True
-            
-        if 'duration' in settings and settings['duration'] > 0:
-            self.duration = settings['duration']
-            updated = True
-            
-        if 'min_frames' in settings and settings['min_frames'] > 0:
-            self.min_frames = settings['min_frames']
-            updated = True
-            
-        return updated
-        
+    # update_settings method is removed as app.py directly sets attributes 
+    # and calls set_frametime (which updates self.interval from OutputModule base)
+
     def stop(self) -> bool:
         """Stop timelapse and create final video if enough frames."""
-        if not super().stop():
-            return False
-            
-        if len(self.frames) >= self.min_frames:
+        was_running = self.is_running
+        if not super().stop(): # This sets self.is_running to False
+            if not was_running: # If it was already stopped, no need to proceed
+                 return False
+        
+        print(f"TimelapseManager {self.name} stopping. Checking for final video creation.")
+        # Process any remaining frames that might have been added just before stop
+        # Or rely on the process_frames loop's own check when is_running becomes false
+        
+        # Ensure final video creation is attempted if conditions met
+        if len(self.frames) > 0 and ( (self.duration > 0 and time.time() - self.start_time >= self.duration) or \
+             (self.min_frames > 0 and len(self.frames) >= self.min_frames) ):
             self._create_timelapse()
-            
+        elif len(self.frames) > 0 :
+             print(f"Timelapse {self.name}: Not enough frames ({len(self.frames)}/{self.min_frames}) or duration not met. Discarding on stop.")
+             self.frames = [] # Clear frames if not creating video
+
+        self.start_time = 0 # Reset start time as it's stopped
         return True 
+
+    def get_required_camera_fps(self) -> float:
+        """Return the required camera FPS based on the timelapse interval."""
+        if self.is_running and self.frame_interval > 0:
+            return 1.0 / self.frame_interval
+        return 0.0 

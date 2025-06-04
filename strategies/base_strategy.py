@@ -2,6 +2,9 @@ from abc import ABC, abstractmethod
 import numpy as np
 
 class ImageProcessingStrategy(ABC):
+    def __init__(self, name: str):
+        self.name = name
+
     @abstractmethod
     def process_image(self, image: np.ndarray) -> np.ndarray:
         """
@@ -17,5 +20,8 @@ class ImageProcessingStrategy(ABC):
 
 class NoOpStrategy(ImageProcessingStrategy):
     """Strategy that performs no processing on the image."""
+    def __init__(self):
+        super().__init__('none')
+
     def process_image(self, image: np.ndarray) -> np.ndarray:
         return image 

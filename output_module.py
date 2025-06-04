@@ -2,8 +2,11 @@ from abc import ABC, abstractmethod
 import threading
 import queue
 import time
-from typing import Optional
+from typing import Optional, TypeVar
 from strategies.base_strategy import ImageProcessingStrategy, NoOpStrategy
+
+# Generic type for ImageProcessingStrategy subclasses
+StrategyType = TypeVar('StrategyType', bound=ImageProcessingStrategy)
 
 class OutputModule(ABC):
     """Base class for all output modules (streaming, recording, timelapse)."""
@@ -17,7 +20,7 @@ class OutputModule(ABC):
         self.fps = 10  # Default FPS
         self.frame_interval = 1.0 / self.fps  # Time between frames
         self.last_frame_time = 0
-        self.processing_strategy: ImageProcessingStrategy = NoOpStrategy()
+        self.processing_strategy: Optional[ImageProcessingStrategy] = None
 
     def start(self) -> bool:
         """Start the output module processing."""
@@ -25,6 +28,7 @@ class OutputModule(ABC):
             return False
             
         self.is_running = True
+        self.clear_queue()
         self.thread = threading.Thread(target=self.process_frames, daemon=True)
         self.thread.start()
         return True
@@ -62,17 +66,21 @@ class OutputModule(ABC):
     def set_fps(self, fps: int) -> bool:
         """Set the FPS for this output module."""
         if fps <= 0:
+            print(f"Warning: Invalid FPS {fps} for module {self.name}. Keeping previous value {self.fps}.")
             return False
         self.fps = fps
         self.frame_interval = 1.0 / fps
+        print(f"Module {self.name} FPS set to {self.fps}, Interval set to {self.frame_interval}")
         return True
     
     def set_frametime(self, frametime: float) -> bool:
-        """Set the frame time for this output module."""
+        """Set the frame time (interval) for this output module."""
         if frametime <= 0:
+            print(f"Warning: Invalid frametime {frametime} for module {self.name}. Keeping previous value {self.frame_interval}.")
             return False
         self.frame_interval = frametime
         self.fps = 1.0 / frametime
+        print(f"Module {self.name} Interval set to {self.frame_interval}, FPS set to {self.fps}")
         return True
 
     def should_process_frame(self) -> bool:
@@ -83,13 +91,16 @@ class OutputModule(ABC):
             return True
         return False
 
-    def set_processing_strategy(self, strategy: ImageProcessingStrategy) -> None:
+    def set_processing_strategy(self, strategy: StrategyType) -> None:
         """Set the image processing strategy."""
         self.processing_strategy = strategy
+        print(f"Module {self.name} processing strategy set to {strategy.name if strategy else 'None'}")
 
     def process_frame(self, frame):
         """Process a single frame using the current strategy."""
-        return self.processing_strategy.process_image(frame)
+        if self.processing_strategy:
+            return self.processing_strategy.process_image(frame)
+        return frame
 
     @abstractmethod
     def process_frames(self):
@@ -99,4 +110,14 @@ class OutputModule(ABC):
     @abstractmethod
     def get_frame(self):
         """Get the next frame. Must be implemented by subclasses."""
+        pass
+
+    @abstractmethod
+    def get_required_camera_fps(self) -> float:
+        """Get the desired camera FPS for this output module.
+        
+        Returns:
+            float: The required FPS (e.g., 25.0 for a 25 FPS stream, or 0.2 for a 5-second timelapse).
+                   Returns 0.0 if the module is not active or has no specific requirement.
+        """
         pass 

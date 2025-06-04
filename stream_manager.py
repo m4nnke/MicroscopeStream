@@ -34,3 +34,9 @@ class StreamManager(OutputModule):
             if frame:
                 yield (b'--frame\r\n'
                       b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n') 
+
+    def get_required_camera_fps(self) -> float:
+        """Return the stream's configured FPS if running, otherwise 0."""
+        if self.is_running:
+            return float(self.fps) # self.fps is from OutputModule base class
+        return 0.0 

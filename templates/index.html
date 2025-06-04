@@ -3,892 +3,484 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OpenCV Camera Stream</title>
+    <title>Microscope Control</title>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 20px;
-            background-color: #f0f0f0;
-            min-height: 100vh;
-        }
+        body { font-family: Arial, sans-serif; margin: 0; padding: 15px; background-color: #f4f4f4; color: #333; display: flex; flex-direction: column; min-height: 100vh; }
         .container {
-            max-width: 1800px;
-            margin: 0 auto;
             display: flex;
-            flex-direction: column;
-            gap: 20px;
-        }
-        .header {
-            text-align: center;
-            margin-bottom: 20px;
-        }
-        .main-content {
-            display: grid;
-            grid-template-columns: minmax(250px, 300px) minmax(600px, 1fr) minmax(250px, 300px);
-            gap: 20px;
-            align-items: start;
-            justify-content: center;
-        }
-        .video-container {
-            background-color: #fff;
-            padding: 20px;
-            border-radius: 5px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-            grid-column: 2;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            min-height: 480px;
-        }
-        .video-feed {
-            max-width: 100%;
-            height: auto;
-            border-radius: 3px;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-        }
-        .camera-controls {
-            background-color: #fff;
-            padding: 20px;
-            border-radius: 5px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-            margin-bottom: 20px;
-            display: flex;
-            flex-direction: row;
+            flex-wrap: nowrap;
             gap: 15px;
+            flex-grow: 1;
+            overflow: hidden;
+            padding-top: 15px;
         }
-        .settings-panel {
+        .column {
+            background-color: #fff;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
             display: flex;
             flex-direction: column;
-            gap: 20px;
-            position: sticky;
-            top: 20px;
+            overflow-y: auto;
         }
-        .settings-section {
-            background: #fff;
-            padding: 20px;
-            border-radius: 5px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        #main-controls-column {
+            flex: 2 1 50%;
+            min-width: 400px;
         }
-        .settings-section h3 {
-            margin-top: 0;
-            color: #2c3e50;
-            font-size: 1.1em;
-            padding-bottom: 10px;
-            border-bottom: 2px solid #ecf0f1;
+        #settings-column {
+            flex: 1 1 30%;
+            min-width: 320px;
+        }
+        #files-column {
+            flex: 1 1 20%;
+            min-width: 250px;
+        }
+        
+        .column h2 { color: #5a5a5a; border-bottom: 2px solid #eee; padding-bottom: 10px; margin-top: 0; }
+        .column h3 { color: #666; margin-top: 10px; margin-bottom: 8px; font-size: 1.1em; }
+        label { display: block; margin-top: 6px; font-weight: bold; font-size: 0.85em; }
+        select, input[type="number"], input[type="text"] { 
+            width: calc(100% - 16px); 
+            padding: 7px;
+            margin-top: 3px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+            font-size: 0.85em;
+        }
+        button { background-color: #007bff; color: white; padding: 7px 10px; border: none; border-radius: 4px; cursor: pointer; margin-top: 8px; margin-right: 5px; font-size: 0.85em; }
+        button:hover { background-color: #0056b3; }
+        button.stop { background-color: #dc3545; }
+        button.stop:hover { background-color: #c82333; }
+        .status-light { height: 9px; width: 9px; background-color: #bbb; border-radius: 50%; display: inline-block; margin-left: 7px; vertical-align: middle; }
+        .status-light.active { background-color: #28a745; }
+        #videoFeed { 
+            width: 100%; 
+            height: auto; 
+            max-height: 70vh;
+            object-fit: contain; 
+            border: 1px solid #ddd; 
+            background-color: #000; 
             margin-bottom: 15px;
         }
-        .control-group {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            margin: 15px 0;
+        .controls-group {
+            margin-bottom: 10px;
         }
-        select, input[type="number"], input[type="range"] {
-            padding: 8px 12px;
-            font-size: 14px;
+        .controls-group span { font-size: 0.9em; vertical-align: middle; }
+
+        ul {
+            list-style-type: none; padding: 0; margin: 0;
+            max-height: 150px; 
+            overflow-y: auto;  
+            border: 1px solid #eee;
             border-radius: 4px;
-            border: 1px solid #ddd;
-            flex: 1;
-            transition: border-color 0.3s ease, box-shadow 0.3s ease;
         }
-        select:focus, input[type="number"]:focus, input[type="range"]:focus {
-            outline: none;
-            border-color: #3498db;
-            box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+        ul li { background-color: #f8f9fa; margin-bottom: 3px; padding: 6px 8px; border-radius: 3px; font-size: 0.85em; }
+        ul li:last-child { margin-bottom: 0; }
+
+        #settingsContainer {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: auto auto;
+            gap: 10px;
+            flex-grow: 1;
         }
-        input[type="range"] {
-            flex: 2;
-            cursor: pointer;
+        .settings-group {
+            padding: 10px;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            background-color: #fdfdfd;
         }
-        label {
-            min-width: 100px;
-            text-align: right;
-            font-size: 14px;
-            color: #34495e;
-            font-weight: 500;
+        .settings-group h3 {
+            margin-top: 0;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 6px;
+            margin-bottom: 10px;
         }
-        .button {
-            padding: 10px 20px;
-            font-size: 14px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            margin: 0 5px;
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            font-weight: 500;
-        }
-        .button:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-        }
-        .button:active {
-            transform: translateY(0);
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        .button:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-            transform: none;
-            box-shadow: none;
-        }
-        .button-primary {
-            background-color: #3498db;
-            color: white;
-        }
-        .button-primary:hover {
-            background-color: #2980b9;
-        }
-        .button-danger {
-            background-color: #e74c3c;
-            color: white;
-        }
-        .button-danger:hover {
-            background-color: #c0392b;
-        }
-        .status-indicator {
-            display: inline-block;
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-            margin-right: 8px;
-            transition: all 0.3s ease;
-        }
-        .status-active {
-            background-color: #2ecc71;
-            box-shadow: 0 0 8px #2ecc71;
-        }
-        .status-inactive {
-            background-color: #e74c3c;
-            box-shadow: 0 0 8px #e74c3c;
-        }
-        .control-row {
-            display: flex;
-            justify-content: center;
-            gap: 15px;
-            margin: 10px 0;
-        }
-        .status-text {
-            font-size: 14px;
-            display: flex;
-            align-items: center;
-            gap: 5px;
-            min-width: 120px;
-        }
-        .timelapse-info {
-            margin-top: 15px;
-            padding: 15px;
-            background: #f8f9fa;
-            border-radius: 4px;
-            font-size: 14px;
-            border: 1px solid #e9ecef;
-        }
-        .timelapse-info p {
-            margin: 8px 0;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            color: #2c3e50;
-        }
-        #current-frames, #next-video-time {
-            font-weight: bold;
-            color: #3498db;
-            background: rgba(52, 152, 219, 0.1);
-            padding: 4px 8px;
-            border-radius: 3px;
-            min-width: 60px;
-            text-align: center;
-        }
-        .value-display {
-            display: inline-block;
-            min-width: 45px;
-            text-align: center;
-            font-weight: 500;
-            color: #2c3e50;
-            background: rgba(52, 152, 219, 0.1);
-            padding: 2px 6px;
-            border-radius: 3px;
-        }
-        .status {
+
+        /* Status Popup Styles */
+        #statusPopup {
             position: fixed;
             bottom: 20px;
             left: 50%;
             transform: translateX(-50%);
-            padding: 12px 24px;
-            background: rgba(44, 62, 80, 0.9);
+            padding: 12px 25px;
+            border-radius: 6px;
             color: white;
-            border-radius: 25px;
-            font-size: 14px;
+            font-size: 1em;
+            z-index: 1000;
             opacity: 0;
-            transition: opacity 0.3s ease;
-            backdrop-filter: blur(5px);
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            visibility: hidden;
+            transition: opacity 0.3s ease, visibility 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
         }
-        .status.visible {
+        #statusPopup.visible {
             opacity: 1;
+            visibility: visible;
         }
-        .file-list {
-            max-height: 200px;
-            overflow-y: auto;
-            padding: 10px;
-            background: #f8f9fa;
-            border-radius: 4px;
-            border: 1px solid #e9ecef;
-            margin-top: 10px;
+        #statusPopup.success {
+            background-color: #28a745;
         }
-        
-        .file-list a {
-            display: block;
-            padding: 5px;
-            color: #2c3e50;
-            text-decoration: none;
-            border-bottom: 1px solid #e9ecef;
+        #statusPopup.error {
+            background-color: #dc3545;
         }
-        
-        .file-list a:hover {
-            background: #e9ecef;
+        #statusPopup.info {
+            background-color: #17a2b8;
         }
-        
-        .info-text {
-            font-size: 0.9em;
-            color: #666;
-            margin-top: 10px;
-            word-break: break-all;
-        }
+        #timelapseProgress { font-size: 0.85em; margin-top: 5px; color: #337ab7;}
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="header">
-            <h1>OpenCV Camera Stream</h1>
-        </div>
-
-        <div class="camera-controls">
-            <div class="control-row">
-                <div class="status-text">
-                    Camera: 
-                    <span class="status-indicator {% if camera_info.status.camera_running %}status-active{% else %}status-inactive{% endif %}"></span>
-                    <span id="camera-status-text">{% if camera_info.status.camera_running %}Running{% else %}Stopped{% endif %}</span>
-                </div>
-                <button id="camera-toggle" class="button {% if camera_info.status.camera_running %}button-danger{% else %}button-primary{% endif %}">
-                    {% if camera_info.status.camera_running %}Stop Camera{% else %}Start Camera{% endif %}
-                </button>
-            </div>
+        <div class="column" id="main-controls-column">
+            <h2>Live Feed</h2>
+            <img id="videoFeed" src="{{ url_for('video_feed') }}" alt="Video Feed Should Appear Here">
             
-            <div class="control-row">
-                <div class="status-text">
-                    Stream: 
-                    <span class="status-indicator {% if camera_info.status.stream_active %}status-active{% else %}status-inactive{% endif %}"></span>
-                    <span id="stream-status-text">{% if camera_info.status.stream_active %}Active{% else %}Inactive{% endif %}</span>
-                </div>
-                <button id="stream-toggle" class="button {% if camera_info.status.stream_active %}button-danger{% else %}button-primary{% endif %}"
-                        {% if not camera_info.status.camera_running %}disabled{% endif %}>
-                    {% if camera_info.status.stream_active %}Stop Stream{% else %}Start Stream{% endif %}
-                </button>
+            <h3>Master Controls</h3>
+            <div class="controls-group">
+                <button id="startCamera">Start Camera</button>
+                <button id="stopCamera" class="stop">Stop Camera</button>
+                <span id="cameraStatus" class="status-light"></span> Camera
             </div>
+            <div class="controls-group">
+                <button id="startStream">Start Stream</button>
+                <button id="stopStream" class="stop">Stop Stream</button>
+                <span id="streamStatus" class="status-light"></span> Stream
+            </div>
+            <div class="controls-group">
+                <button id="startStorage">Start Recording</button>
+                <button id="stopStorage" class="stop">Stop Recording</button>
+                <span id="storageStatus" class="status-light"></span> <span id="storageFileStatus">Recording Idle</span>
+            </div>
+            <div class="controls-group">
+                <button id="startTimelapse">Start Timelapse</button>
+                <button id="stopTimelapse" class="stop">Stop Timelapse</button>
+                <span id="timelapseStatus" class="status-light"></span> <span id="timelapseFramesStatus">Timelapse Idle</span>
+            </div>
+            <div class="controls-group">
+                <button id="captureStillButton">Capture Max Res Still</button>
+            </div>
+        </div>
+
+        <div class="column" id="settings-column">
+            <h2>Settings</h2>
+            <div id="settingsContainer">
+                <div class="settings-group">
+                    <h3>Camera</h3>
+                    <label for="camResolution">Resolution:</label>
+                    <select id="camResolution" data-setting-path="camera.resolution"></select>
+                    <label for="camBrightness">Brightness (0-100):</label>
+                    <input type="number" id="camBrightness" data-setting-path="camera.brightness_ui" min="0" max="100">
+                    <label for="camContrast">Contrast (0-100):</label>
+                    <input type="number" id="camContrast" data-setting-path="camera.contrast_ui" min="0" max="100">
+                    <label for="camSaturation">Saturation (0-100):</label>
+                    <input type="number" id="camSaturation" data-setting-path="camera.saturation_ui" min="0" max="100">
+                </div>
+
+                <div class="settings-group">
+                    <h3>Stream</h3>
+                    <label for="streamFps">FPS:</label>
+                    <input type="number" id="streamFps" data-setting-path="stream.fps" min="1" max="60">
+                    <label for="streamJpegQuality">JPEG Quality (1-100):</label>
+                    <input type="number" id="streamJpegQuality" data-setting-path="stream.jpeg_quality" min="1" max="100">
+                    <label for="streamProcessingMode">Processing Mode:</label>
+                    <select id="streamProcessingMode" data-setting-path="stream.processing_strategy_name"></select>
+                </div>
+
+                <div class="settings-group">
+                    <h3>Storage (Recording)</h3>
+                    <label for="storageFps">FPS (for recording):</label>
+                    <input type="number" id="storageFps" data-setting-path="storage.fps" min="1" max="60">
+                    <label for="storageProcessingMode">Processing Mode:</label>
+                    <select id="storageProcessingMode" data-setting-path="storage.processing_strategy_name"></select>
+                    <div><label>Output Dir:</label> <span id="storageOutputDir" style="font-weight:normal; font-size:0.9em;"></span></div>
+                </div>
+
+                <div class="settings-group">
+                    <h3>Timelapse</h3>
+                    <label for="timelapseInterval">Interval (seconds):</label>
+                    <input type="number" id="timelapseInterval" data-setting-path="timelapse.interval" min="0.1" step="0.1">
+                    <label for="timelapseDuration">Duration (seconds, 0 for indefinite):</label>
+                    <input type="number" id="timelapseDuration" data-setting-path="timelapse.duration" min="0">
+                    <label for="timelapseMinFrames">Min Frames for Video:</label>
+                    <input type="number" id="timelapseMinFrames" data-setting-path="timelapse.min_frames" min="1">
+                    <label for="timelapseProcessingMode">Processing Mode:</label>
+                    <select id="timelapseProcessingMode" data-setting-path="timelapse.processing_strategy_name"></select>
+                    <div><label>Output Dir:</label> <span id="timelapseOutputDir" style="font-weight:normal; font-size:0.9em;"></span></div>
+                    <div id="timelapseProgress"></div>
+                </div>
+            </div>
+            <button id="applyAllSettings" style="width:100%; padding-top:10px; padding-bottom:10px; margin-top:auto;">Apply Changed Settings</button>
+        </div>
+
+        <div class="column" id="files-column">
+            <h2>Recordings</h2>
+            <button id="refreshRecordings" style="margin-bottom:5px;">Refresh</button>
+            <ul id="recordingsList"></ul>
             
-            <div class="control-row">
-                <div class="status-text">
-                    Capture: 
-                    <span class="status-indicator {% if camera_info.status.capture_active %}status-active{% else %}status-inactive{% endif %}"></span>
-                    <span id="capture-status-text">{% if camera_info.status.capture_active %}Active{% else %}Inactive{% endif %}</span>
-                </div>
-                <button id="capture-toggle" class="button {% if camera_info.status.capture_active %}button-danger{% else %}button-primary{% endif %}"
-                        {% if not camera_info.status.camera_running %}disabled{% endif %}>
-                    {% if camera_info.status.capture_active %}Stop Capture{% else %}Start Capture{% endif %}
-                </button>
-            </div>
-            <div class="control-row">
-                <div class="status-text">
-                    Timelapse: 
-                    <span class="status-indicator {% if camera_info.status.timelapse_active %}status-active{% else %}status-inactive{% endif %}"></span>
-                    <span id="timelapse-status-text">{% if camera_info.status.timelapse_active %}Active{% else %}Inactive{% endif %}</span>
-                </div>
-                <button id="timelapse-toggle" class="button {% if camera_info.status.timelapse_active %}button-danger{% else %}button-primary{% endif %}"
-                        {% if not camera_info.status.camera_running %}disabled{% endif %}>
-                    {% if camera_info.status.timelapse_active %}Stop Timelapse{% else %}Start Timelapse{% endif %}
-                </button>
-            </div>
+            <h2 style="margin-top:20px;">Timelapses</h2>
+            <button id="refreshTimelapses" style="margin-bottom:5px;">Refresh</button>
+            <ul id="timelapsesList"></ul>
+
+            <h2 style="margin-top:20px;">Stills</h2>
+            <button id="refreshStills" style="margin-bottom:5px;">Refresh</button>
+            <ul id="stillsList"></ul>
         </div>
-
-        <div class="main-content">
-            <!-- Left Panel -->
-            <div class="settings-panel">
-                <div class="settings-section">
-                    <h3>Resolution</h3>
-                    <div class="control-group">
-                        <label for="resolution">Resolution:</label>
-                        <select id="resolution" name="resolution" {% if not camera_info.status.camera_running %}disabled{% endif %}>
-                            {% for res in camera_info.supported_resolutions %}
-                            <option value="{{ res[0] }},{{ res[1] }}"
-                                {% if res == camera_info.current_settings.resolution %}selected{% endif %}>
-                                {{ res[0] }}x{{ res[1] }}
-                            </option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                </div>
-
-                <div class="settings-section">
-                    <h3>Image Processing</h3>
-                    <div class="control-group">
-                        <label for="processing_mode">Mode:</label>
-                        <select id="processing_mode" name="processing_mode">
-                            <option value="none">None</option>
-                            <option value="edges">Edge Detection</option>
-                            <option value="grayscale">Grayscale</option>
-                            <option value="threshold">Threshold</option>
-                            <option value="contrast">Contrast Enhancement</option>
-                            <option value="ocr">OCR</option>
-                        </select>
-                    </div>
-                </div>
-
-                <div class="settings-section">
-                    <h3>Frame Rate</h3>
-                    <div class="control-group">
-                        <label for="fps">FPS:</label>
-                        <input type="number" id="fps" name="fps"
-                               min="1" max="60" step="1"
-                               value="{{ camera_info.current_settings.fps }}"
-                               {% if not camera_info.status.camera_running %}disabled{% endif %}>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Center Video Feed -->
-            <div class="video-container">
-                <img class="video-feed" src="{{ url_for('video_feed') }}" alt="Video Feed">
-            </div>
-
-            <!-- Right Panel -->
-            <div class="settings-panel">
-                <div class="settings-section">
-                    <h3>Camera Settings</h3>
-                    <div class="control-group">
-                        <label for="brightness">Brightness:</label>
-                        <input type="range" id="brightness" name="brightness"
-                               min="0" max="100" step="1"
-                               value="{{ camera_info.current_settings.brightness }}"
-                               {% if not camera_info.status.camera_running %}disabled{% endif %}>
-                        <span id="brightness-value" class="value-display">{{ camera_info.current_settings.brightness }}</span>
-                    </div>
-                    <div class="control-group">
-                        <label for="contrast">Contrast:</label>
-                        <input type="range" id="contrast" name="contrast"
-                               min="0" max="100" step="1"
-                               value="{{ camera_info.current_settings.contrast }}"
-                               {% if not camera_info.status.camera_running %}disabled{% endif %}>
-                        <span id="contrast-value" class="value-display">{{ camera_info.current_settings.contrast }}</span>
-                    </div>
-                    <div class="control-group">
-                        <label for="saturation">Saturation:</label>
-                        <input type="range" id="saturation" name="saturation"
-                               min="0" max="100" step="1"
-                               value="{{ camera_info.current_settings.saturation }}"
-                               {% if not camera_info.status.camera_running %}disabled{% endif %}>
-                        <span id="saturation-value" class="value-display">{{ camera_info.current_settings.saturation }}</span>
-                    </div>
-                    <div class="control-group">
-                        <label for="exposure">Exposure:</label>
-                        <input type="range" id="exposure" name="exposure"
-                               min="-13" max="13" step="1"
-                               value="{{ camera_info.current_settings.exposure }}"
-                               {% if not camera_info.status.camera_running %}disabled{% endif %}>
-                        <span id="exposure-value" class="value-display">{{ camera_info.current_settings.exposure }}</span>
-                    </div>
-                </div>
-
-                <div class="settings-section">
-                    <h3>Stream Settings</h3>
-                    <div class="control-group">
-                        <label for="stream_fps">FPS:</label>
-                        <input type="number" id="stream_fps" name="stream_fps"
-                               min="1" max="60" step="1"
-                               value="{{ camera_info.current_settings.stream.fps }}"
-                               {% if not camera_info.status.camera_running %}disabled{% endif %}>
-                    </div>
-                    <div class="control-group">
-                        <label for="jpeg_quality">Quality:</label>
-                        <input type="range" id="jpeg_quality" name="jpeg_quality"
-                               min="1" max="100" step="1"
-                               value="{{ camera_info.current_settings.stream.jpeg_quality }}"
-                               {% if not camera_info.status.camera_running %}disabled{% endif %}>
-                        <span id="jpeg_quality-value" class="value-display">{{ camera_info.current_settings.stream.jpeg_quality }}</span>
-                    </div>
-                </div>
-
-                <div class="settings-section">
-                    <h3>Recording Settings</h3>
-                    <div class="control-group">
-                        <label for="recording_fps">FPS:</label>
-                        <input type="number" id="recording_fps" name="recording_fps"
-                               min="1" max="60" step="1"
-                               value="{{ camera_info.current_settings.storage.fps }}"
-                               {% if not camera_info.status.camera_running %}disabled{% endif %}>
-                    </div>
-                    <div class="control-group">
-                        <label for="recording_interval">Interval:</label>
-                        <input type="number" id="recording_interval" name="recording_interval"
-                               min="1" max="60" step="1"
-                               value="{{ camera_info.current_settings.storage.interval }}"
-                               {% if not camera_info.status.camera_running %}disabled{% endif %}>
-                    </div>
-                    <div class="control-group">
-                        <label for="output_dir">Output Dir:</label>
-                        <input type="text" id="output_dir" name="output_dir"
-                               value="{{ camera_info.current_settings.storage.output_dir }}"
-                               {% if not camera_info.status.camera_running %}disabled{% endif %}>
-                    </div>
-                    {% if camera_info.current_settings.storage.current_file %}
-                    <div class="info-text">
-                        Current file: {{ camera_info.current_settings.storage.current_file }}
-                    </div>
-                    {% endif %}
-                </div>
-
-                <div class="settings-section">
-                    <h3>Timelapse Settings</h3>
-                    <div class="control-group">
-                        <label for="timelapse_interval">Interval:</label>
-                        <input type="number" id="timelapse_interval" name="timelapse_interval"
-                               min="1" max="3600" step="1"
-                               value="{{ camera_info.current_settings.timelapse.interval }}"
-                               {% if not camera_info.status.camera_running %}disabled{% endif %}>
-                        <span>sec</span>
-                    </div>
-                    <div class="control-group">
-                        <label for="timelapse_duration">Duration:</label>
-                        <input type="number" id="timelapse_duration" name="timelapse_duration"
-                               min="60" max="86400" step="60"
-                               value="{{ camera_info.current_settings.timelapse.duration }}"
-                               {% if not camera_info.status.camera_running %}disabled{% endif %}>
-                        <span>sec</span>
-                    </div>
-                    <div class="control-group">
-                        <label for="min_frames">Min. Frames:</label>
-                        <input type="number" id="min_frames" name="min_frames"
-                               min="10" max="1000" step="10"
-                               value="{{ camera_info.current_settings.timelapse.min_frames }}"
-                               {% if not camera_info.status.camera_running %}disabled{% endif %}>
-                    </div>
-                    <div class="timelapse-info">
-                        <p>
-                            <span>Current frames:</span>
-                            <span id="current-frames">{{ camera_info.current_settings.timelapse.current_frames }}</span>
-                        </p>
-                        <p>
-                            <span>Next video in:</span>
-                            <span id="next-video-time">{{ camera_info.current_settings.timelapse.next_video_in }}</span>s
-                        </p>
-                    </div>
-                </div>
-
-                <div class="settings-section">
-                    <h3>Recorded Videos</h3>
-                    <div id="recordings-list" class="file-list">
-                        Loading recordings...
-                    </div>
-                </div>
-
-                <div class="settings-section">
-                    <h3>Timelapse Videos</h3>
-                    <div id="timelapses-list" class="file-list">
-                        Loading timelapses...
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="status" id="camera-status"></div>
     </div>
 
+    <!-- Status Popup HTML -->
+    <div id="statusPopup"></div>
+
     <script>
-        // Camera control elements
-        const cameraToggle = document.getElementById('camera-toggle');
-        const streamToggle = document.getElementById('stream-toggle');
-        const captureToggle = document.getElementById('capture-toggle');
-        const timelapseToggle = document.getElementById('timelapse-toggle');
-        const cameraStatus = document.getElementById('camera-status');
-        const videoFeed = document.querySelector('.video-feed');
+        // Initial data from Flask/Jinja2
+        // eslint-disable-next-line
+        let AppData = {{ page_data | tojson | safe }};
+        let currentSettings = AppData.settings;
+        let currentStatus = AppData.status;
+        let changedSettings = {}; 
+        let statusPopupTimeout = null;
 
-        // Status elements
-        const cameraStatusText = document.getElementById('camera-status-text');
-        const streamStatusText = document.getElementById('stream-status-text');
-        const captureStatusText = document.getElementById('capture-status-text');
-        const timelapseStatusText = document.getElementById('timelapse-status-text');
-
-        // Settings controls
-        const settingsControls = document.querySelectorAll('select, input');
-
-        // Update status indicators
-        function updateStatusIndicators(status) {
-            // Update camera status
-            cameraStatusText.textContent = status.camera_running ? 'Running' : 'Stopped';
-            cameraToggle.textContent = status.camera_running ? 'Stop Camera' : 'Start Camera';
-            cameraToggle.className = `button ${status.camera_running ? 'button-danger' : 'button-primary'}`;
-            
-            // Update stream status
-            streamStatusText.textContent = status.stream_active ? 'Active' : 'Inactive';
-            streamToggle.textContent = status.stream_active ? 'Stop Stream' : 'Start Stream';
-            streamToggle.className = `button ${status.stream_active ? 'button-danger' : 'button-primary'}`;
-            streamToggle.disabled = !status.camera_running;
-            
-            // Update capture status
-            captureStatusText.textContent = status.capture_active ? 'Active' : 'Inactive';
-            captureToggle.textContent = status.capture_active ? 'Stop Capture' : 'Start Capture';
-            captureToggle.className = `button ${status.capture_active ? 'button-danger' : 'button-primary'}`;
-            captureToggle.disabled = !status.camera_running;
-
-            // Update timelapse status
-            timelapseStatusText.textContent = status.timelapse_active ? 'Active' : 'Inactive';
-            timelapseToggle.textContent = status.timelapse_active ? 'Stop Timelapse' : 'Start Timelapse';
-            timelapseToggle.className = `button ${status.timelapse_active ? 'button-danger' : 'button-primary'}`;
-            timelapseToggle.disabled = !status.camera_running;
-
-            // Update settings controls
-            settingsControls.forEach(control => {
-                control.disabled = !status.camera_running;
-            });
-
-            // Update status indicators
-            document.querySelectorAll('.status-indicator').forEach(indicator => {
-                const type = indicator.parentElement.textContent.trim().toLowerCase().split(':')[0];
-                indicator.className = `status-indicator ${status[type + '_running'] || status[type + '_active'] ? 'status-active' : 'status-inactive'}`;
-            });
-
-            // Reload video feed if stream is active
-            if (status.stream_active) {
-                videoFeed.src = "{{ url_for('video_feed') }}";
-            } else {
-                videoFeed.src = "";
-            }
+        // --- STATUS POPUP --- 
+        function showStatusPopup(message, type = 'info', duration = 3000) {
+            const popup = document.getElementById('statusPopup');
+            if (!popup) return;
+            popup.textContent = message;
+            popup.className = 'visible '; 
+            popup.classList.add(type);
+            if (statusPopupTimeout) clearTimeout(statusPopupTimeout);
+            if (duration > 0) statusPopupTimeout = setTimeout(hideStatusPopup, duration);
+        }
+        function hideStatusPopup() {
+            const popup = document.getElementById('statusPopup');
+            if (popup) popup.classList.remove('visible');
+            if (statusPopupTimeout) { clearTimeout(statusPopupTimeout); statusPopupTimeout = null; }
         }
 
-        // Camera control function
-        async function controlCamera(action) {
+        // --- UTILITY FUNCTIONS ---
+        function getNestedValue(obj, path) { return path.split('.').reduce((acc, part) => acc && acc[part], obj); }
+        function setNestedValue(obj, path, value) {
+            const keys = path.split('.'); const lastKey = keys.pop();
+            const target = keys.reduce((acc, part) => acc[part] = acc[part] || {}, obj);
+            target[lastKey] = value;
+        }
+        
+        // --- API INTERACTION ---
+        async function fetchAPI(url, options = {}) {
             try {
-                const response = await fetch('/camera/control', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ action })
-                });
-                
-                const data = await response.json();
-                
-                if (data.success) {
-                    // Get updated status
-                    const statusResponse = await fetch('/camera/status');
-                    const status = await statusResponse.json();
-                    updateStatusIndicators(status);
-                } else {
-                    cameraStatus.textContent = data.message;
-                }
-            } catch (error) {
-                cameraStatus.textContent = 'Error controlling camera';
-                console.error('Error:', error);
-            }
-        }
-
-        // Add event listeners for camera controls
-        cameraToggle.addEventListener('click', () => {
-            const action = cameraToggle.textContent.toLowerCase().includes('start') ? 'start_camera' : 'stop_camera';
-            controlCamera(action);
-        });
-
-        streamToggle.addEventListener('click', () => {
-            const action = streamToggle.textContent.toLowerCase().includes('start') ? 'start_stream' : 'stop_stream';
-            controlCamera(action);
-        });
-
-        captureToggle.addEventListener('click', () => {
-            const action = captureToggle.textContent.toLowerCase().includes('start') ? 'start_capture' : 'stop_capture';
-            controlCamera(action);
-        });
-
-        timelapseToggle.addEventListener('click', () => {
-            const action = timelapseToggle.textContent.toLowerCase().includes('start') ? 'start_timelapse' : 'stop_timelapse';
-            controlCamera(action);
-        });
-
-        // Update display values for range inputs
-        ['brightness', 'contrast', 'saturation', 'exposure'].forEach(control => {
-            const input = document.getElementById(control);
-            const value = document.getElementById(`${control}-value`);
-            input.addEventListener('input', function() {
-                value.textContent = this.value;
-            });
-        });
-
-        // Camera settings update function
-        async function updateCameraSettings(settings) {
-            try {
-                showStatus('Updating settings...');
-                const response = await fetch('/camera_settings', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify(settings)
-                });
-                
-                const data = await response.json();
-                
-                if (data.success) {
-                    showStatus('Settings updated successfully');
-                    setTimeout(() => {
-                        hideStatus();
-                    }, 2000);
-                    
-                    updateStatusIndicators(data.settings.status);
-                } else {
-                    showStatus(data.error || 'Failed to update settings');
-                }
-            } catch (error) {
-                showStatus('Error updating camera settings');
-                console.error('Error:', error);
-            }
-        }
-
-        // Add helper functions to show/hide status
-        function showStatus(message) {
-            cameraStatus.textContent = message;
-            cameraStatus.classList.add('visible');
-        }
-
-        function hideStatus() {
-            cameraStatus.textContent = '';
-            cameraStatus.classList.remove('visible');
-        }
-
-        // Add change listeners to all camera settings controls
-        const settingsControlsList = [
-            'resolution', 'processing_mode', 'brightness', 'contrast',
-            'saturation', 'exposure', 'fps'
-        ];
-
-        settingsControlsList.forEach(control => {
-            const element = document.getElementById(control);
-            element.addEventListener('change', function() {
-                let value = this.value;
-                
-                // Handle resolution which needs to be converted to array
-                if (control === 'resolution') {
-                    value = value.split(',').map(Number);
-                }
-                
-                // Handle numeric inputs
-                if (['brightness', 'contrast', 'saturation', 'exposure', 'fps'].includes(control)) {
-                    value = parseFloat(value);
-                }
-                
-                updateCameraSettings({ [control]: value });
-            });
-        });
-
-        // Periodic status update with better error handling
-        setInterval(async () => {
-            try {
-                console.log('Fetching camera status...');
-                const response = await fetch('/camera/status');
+                const response = await fetch(url, options);
                 if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
+                    const errorData = await response.json().catch(() => ({ message: response.statusText }));
+                    const errorMessage = `API Error (${response.status}): ${errorData.message || 'Unknown error'}`;
+                    showStatusPopup(errorMessage, 'error'); throw new Error(errorMessage);
                 }
-                const status = await response.json();
-                console.log('Received camera status:', status);
-                updateStatusIndicators(status);
+                return await response.json();
             } catch (error) {
-                console.error('Error updating status:', error);
-                showStatus('Error updating camera status');
-                setTimeout(hideStatus, 2000);
+                console.error(error.message);
+                if (!error.message.startsWith('API Error')) showStatusPopup(error.message, 'error');
+                throw error; 
             }
-        }, 5000);
-
-        function updateTimelapseInfo() {
-            fetch('/timelapse/settings')
-                .then(response => response.json())
-                .then(data => {
-                    document.getElementById('current-frames').textContent = data.current_frames;
-                    document.getElementById('next-video-time').textContent = Math.round(data.next_video_in);
-                })
-                .catch(error => console.error('Error updating timelapse info:', error));
         }
-
-        function updateTimelapseSettings(setting, value) {
-            fetch('/timelapse/settings', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ [setting]: parseInt(value) })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    showStatus(`${setting} updated successfully`);
-                } else {
-                    showStatus(data.error || 'Failed to update setting');
-                }
-                setTimeout(hideStatus, 2000);
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                showStatus('Error updating setting');
-            });
-        }
-
-        document.getElementById('timelapse_interval').addEventListener('change', function() {
-            updateTimelapseSettings('interval', this.value);
-        });
-
-        document.getElementById('timelapse_duration').addEventListener('change', function() {
-            updateTimelapseSettings('duration', this.value);
-        });
-
-        document.getElementById('min_frames').addEventListener('change', function() {
-            updateTimelapseSettings('min_frames', this.value);
-        });
-
-        setInterval(updateTimelapseInfo, 10000);
-
-        setInterval(async () => {
+        async function updateSettingsAPI() {
+            if (Object.keys(changedSettings).length === 0) {
+                showStatusPopup("No settings have been changed.", 'info'); return;
+            }
             try {
-                const response = await fetch('/camera/status');
-                const status = await response.json();
-                updateStatusIndicators(status);
-                updateTimelapseInfo();
-            } catch (error) {
-                console.error('Error updating status:', error);
+                const data = await fetchAPI('/api/settings', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(changedSettings)
+                });
+                if (data.success) {
+                    showStatusPopup("Settings applied successfully!", 'success');
+                    currentSettings = data.settings; populateUISettings(currentSettings); 
+                    changedSettings = {}; await fetchStatusAPI(); 
+                }
+            } catch (error) { /* Handled by fetchAPI */ }
+        }
+        async function controlModuleAPI(component, action) {
+            try {
+                const data = await fetchAPI(`/api/control/${component}/${action}`, { method: 'POST' });
+                if (data.success) {
+                    showStatusPopup(data.message, 'success');
+                    await fetchStatusAPI(); 
+                    if (component === 'stream' && action === 'start') {
+                        const videoElement = document.getElementById('videoFeed');
+                        // Add a timestamp to force reload the MJPEG stream
+                        videoElement.src = "{{ url_for('video_feed') }}?timestamp=" + new Date().getTime(); 
+                    }
+                }
+            } catch (error) { /* Handled by fetchAPI */ }
+        }
+        async function fetchStatusAPI() {
+            try { currentStatus = await fetchAPI('/api/status'); populateUIStatus(currentStatus); }
+            catch (error) { /* Handled by fetchAPI */ }
+        }
+        async function fetchRecordings() {
+            try {
+                const data = await fetchAPI('/recordings');
+                const list = document.getElementById('recordingsList'); list.innerHTML = ''; 
+                if (data.recordings && data.recordings.length > 0) {
+                    data.recordings.forEach(r => { 
+                        const li = document.createElement('li'); 
+                        const a = document.createElement('a');
+                        a.href = `/download/recording/${r}`;
+                        a.textContent = r;
+                        a.style.textDecoration = 'underline'; a.style.cursor = 'pointer';
+                        // a.download = r; // Useful if not using as_attachment=True on server
+                        li.appendChild(a);
+                        list.appendChild(li); 
+                    });
+                } else { list.innerHTML = '<li>No recordings.</li>'; }
+            } catch (error) { /* Handled by fetchAPI */ }
+        }
+        async function fetchTimelapses() {
+            try {
+                const data = await fetchAPI('/timelapses');
+                const list = document.getElementById('timelapsesList'); list.innerHTML = '';
+                if (data.timelapses && data.timelapses.length > 0) {
+                    data.timelapses.forEach(l => { 
+                        const li = document.createElement('li');
+                        const a = document.createElement('a');
+                        a.href = `/download/timelapse/${l}`;
+                        a.textContent = l;
+                        a.style.textDecoration = 'underline'; a.style.cursor = 'pointer';
+                        li.appendChild(a);
+                        list.appendChild(li); 
+                    });
+                } else { list.innerHTML = '<li>No timelapses.</li>'; }
+            } catch (error) { /* Handled by fetchAPI */ }
+        }
+        async function fetchStills() {
+            try {
+                const data = await fetchAPI('/api/stills_list');
+                const list = document.getElementById('stillsList'); list.innerHTML = '';
+                if (data.success && data.stills && data.stills.length > 0) {
+                    data.stills.forEach(s => { 
+                        const li = document.createElement('li'); 
+                        const a = document.createElement('a');
+                        a.href = `/download/still/${s}`;
+                        a.textContent = s;
+                        a.style.textDecoration = 'underline'; a.style.cursor = 'pointer';
+                        li.appendChild(a);
+                        list.appendChild(li); 
+                    });
+                } else if (data.success) { 
+                    list.innerHTML = '<li>No stills.</li>'; 
+                } else {
+                    list.innerHTML = '<li>Error loading stills.</li>'; 
+                    showStatusPopup(data.message || 'Could not load stills.', 'error');
+                }
+            } catch (error) { list.innerHTML = '<li>Error loading stills.</li>'; /* Handled by fetchAPI */ }
+        }
+
+        // --- UI POPULATION ---
+        function populateProcessingModes(el, modes, current) {
+            el.innerHTML = ''; modes.forEach(m => { const o = document.createElement('option');
+            o.value = m; o.textContent = m.charAt(0).toUpperCase() + m.slice(1); if (m === current) o.selected = true; el.appendChild(o); });
+        }
+        function populateCameraResolutions(el, supported, current) {
+            el.innerHTML = ''; if (!supported) supported = []; if (!current) current = [0,0];
+            supported.forEach(r => { const o = document.createElement('option'); const rs = `${r[0]}x${r[1]}`;
+            o.value = JSON.stringify(r); o.textContent = rs; if (r[0] === current[0] && r[1] === current[1]) o.selected = true; el.appendChild(o); });
+        }
+        function populateUISettings(s) {
+            if (!s) return;
+            if (s.camera) {
+                populateCameraResolutions(document.getElementById('camResolution'), s.camera.supported_resolutions, s.camera.resolution);
+                document.getElementById('camBrightness').value = s.camera.brightness_ui;
+                document.getElementById('camContrast').value = s.camera.contrast_ui;
+                document.getElementById('camSaturation').value = s.camera.saturation_ui;
             }
-        }, 5000);
+            const modes = s.available_processing_modes || [];
+            if (s.stream) {
+                document.getElementById('streamFps').value = s.stream.fps;
+                document.getElementById('streamJpegQuality').value = s.stream.jpeg_quality;
+                populateProcessingModes(document.getElementById('streamProcessingMode'), modes, s.stream.processing_strategy_name);
+            }
+            if (s.storage) {
+                document.getElementById('storageFps').value = s.storage.fps;
+                populateProcessingModes(document.getElementById('storageProcessingMode'), modes, s.storage.processing_strategy_name);
+                document.getElementById('storageOutputDir').textContent = s.storage.output_dir;
+            }
+            if (s.timelapse) {
+                document.getElementById('timelapseInterval').value = s.timelapse.interval;
+                document.getElementById('timelapseDuration').value = s.timelapse.duration;
+                document.getElementById('timelapseMinFrames').value = s.timelapse.min_frames;
+                populateProcessingModes(document.getElementById('timelapseProcessingMode'), modes, s.timelapse.processing_strategy_name);
+                document.getElementById('timelapseOutputDir').textContent = s.timelapse.output_dir;
+            }
+        }
+        function populateUIStatus(st) {
+            if (!st) return;
+            document.getElementById('cameraStatus').classList.toggle('active', st.camera_running);
+            document.getElementById('streamStatus').classList.toggle('active', st.stream_active);
+            document.getElementById('storageStatus').classList.toggle('active', st.storage_active);
+            document.getElementById('storageFileStatus').textContent = st.storage_active ? (st.storage_current_file || 'Recording...') : 'Recording Idle';
+            document.getElementById('timelapseStatus').classList.toggle('active', st.timelapse_active);
+            const tInfo = st.timelapse_info;
+            if (tInfo) {
+                let prog = st.timelapse_active ? `Frames: ${tInfo.current_frames || 0}. Next: ${tInfo.next_capture_in}s. Vid: ${tInfo.next_video_in}s.`
+                           : (tInfo.current_frames > 0 ? `Paused. Frames: ${tInfo.current_frames || 0}.` : 'Timelapse Idle');
+                document.getElementById('timelapseFramesStatus').textContent = `${tInfo.current_frames || 0} frames`;
+                document.getElementById('timelapseProgress').textContent = prog;
+            } else {
+                 document.getElementById('timelapseFramesStatus').textContent = `Timelapse Idle`;
+                 document.getElementById('timelapseProgress').textContent = '';
+            }
+        }
 
-        // Add new script for managing settings
-        function updateStreamSettings(settings) {
-            fetch('/stream/settings', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(settings)
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    showStatus('Stream settings updated');
-                } else {
-                    showStatus('Failed to update stream settings');
+        // --- EVENT LISTENERS ---
+        function setupEventListeners() {
+            ['startCamera','stopCamera','startStream','stopStream','startStorage','stopStorage','startTimelapse','stopTimelapse'].forEach(id => {
+                const parts = id.match(/^(start|stop)([A-Z][a-zA-Z]+)$/);
+                if(parts) document.getElementById(id).addEventListener('click', () => controlModuleAPI(parts[2].toLowerCase(), parts[1]));
+            });
+            document.querySelectorAll('#settingsContainer [data-setting-path]').forEach(input => {
+                input.addEventListener('change', (e) => {
+                    const path = e.target.dataset.settingPath; let val = e.target.value;
+                    if (e.target.type === 'number') {
+                        val = parseFloat(val);
+                        if (isNaN(val)) { showStatusPopup(`Invalid number for ${path}: ${e.target.value}`, 'error'); return; }
+                    } else if (e.target.id === 'camResolution') {
+                         try { val = JSON.parse(val); } catch (err) { showStatusPopup("Invalid resolution format.", 'error'); return; }
+                    }
+                    setNestedValue(changedSettings, path, val); console.log("Staged:", changedSettings);
+                });
+            });
+            document.getElementById('applyAllSettings').addEventListener('click', updateSettingsAPI);
+            document.getElementById('refreshRecordings').addEventListener('click', fetchRecordings);
+            document.getElementById('refreshTimelapses').addEventListener('click', fetchTimelapses);
+            document.getElementById('refreshStills').addEventListener('click', fetchStills);
+            document.getElementById('captureStillButton').addEventListener('click', async () => {
+                try {
+                    const data = await fetchAPI("{{ url_for('capture_high_res_still') }}", { method: 'POST' });
+                    if (data.success) {
+                        showStatusPopup(data.message || 'Still captured successfully!', 'success');
+                        fetchStills(); // Refresh the stills list
+                    } else {
+                        // Error already shown by fetchAPI, but we can add a specific one if needed
+                        // showStatusPopup(data.message || 'Failed to capture still.', 'error');
+                    }
+                } catch (error) {
+                    // Error already shown by fetchAPI
+                    console.error("Error capturing still:", error);
                 }
-                setTimeout(hideStatus, 2000);
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                showStatus('Error updating stream settings');
             });
         }
 
-        function updateStorageSettings(settings) {
-            fetch('/storage/settings', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(settings)
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    showStatus('Recording settings updated');
-                } else {
-                    showStatus('Failed to update recording settings');
-                }
-                setTimeout(hideStatus, 2000);
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                showStatus('Error updating recording settings');
-            });
-        }
-
-        function updateRecordingsList() {
-            fetch('/recordings')
-            .then(response => response.json())
-            .then(data => {
-                const list = document.getElementById('recordings-list');
-                if (data.recordings.length > 0) {
-                    list.innerHTML = data.recordings.map(file => 
-                        `<a href="/recordings/${file}" target="_blank">${file}</a>`
-                    ).join('');
-                } else {
-                    list.innerHTML = 'No recordings available';
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                document.getElementById('recordings-list').innerHTML = 'Error loading recordings';
-            });
-        }
-
-        function updateTimelapsesList() {
-            fetch('/timelapses')
-            .then(response => response.json())
-            .then(data => {
-                const list = document.getElementById('timelapses-list');
-                if (data.timelapses.length > 0) {
-                    list.innerHTML = data.timelapses.map(file => 
-                        `<a href="/timelapses/${file}" target="_blank">${file}</a>`
-                    ).join('');
-                } else {
-                    list.innerHTML = 'No timelapse videos available';
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                document.getElementById('timelapses-list').innerHTML = 'Error loading timelapses';
-            });
-        }
-
-        // Add event listeners for new controls
-        document.getElementById('stream_fps').addEventListener('change', function() {
-            updateStreamSettings({ fps: parseInt(this.value) });
-        });
-
-
-
-        document.getElementById('jpeg_quality').addEventListener('change', function() {
-            updateStreamSettings({ jpeg_quality: parseInt(this.value) });
-        });
-
-        document.getElementById('recording_fps').addEventListener('change', function() {
-            updateStorageSettings({ fps: parseFloat(this.value) });
-        });
-
-        document.getElementById('recording_interval').addEventListener('change', function() {
-            updateStorageSettings({ interval: parseFloat(this.value) });
-        });
-
-        document.getElementById('output_dir').addEventListener('change', function() {
-            updateStorageSettings({ output_dir: this.value });
-        });
-
-        // Update file lists periodically
-        setInterval(() => {
-            updateRecordingsList();
-            updateTimelapsesList();
-        }, 5000);
-
-        // Initial load of file lists
-        updateRecordingsList();
-        updateTimelapsesList();
-
-        // Add event listener for processing mode
-        document.getElementById('processing_mode').addEventListener('change', function() {
-            updateStreamSettings({ processing_mode: this.value });
+        // --- INITIALIZATION ---
+        document.addEventListener('DOMContentLoaded', () => {
+            const popup = document.getElementById('statusPopup'); if (popup) popup.addEventListener('click', hideStatusPopup);
+            if (!currentSettings || !currentStatus) {
+                showStatusPopup("Error loading initial page data. Refresh.",'error',0); console.error("Initial data error."); return;
+            }
+            populateUISettings(currentSettings); populateUIStatus(currentStatus);
+            setupEventListeners(); fetchRecordings(); fetchTimelapses(); fetchStills();
+            setInterval(fetchStatusAPI, 5000); 
+            const videoEl = document.getElementById('videoFeed');
+            /*videoEl.onerror = () => {
+                showStatusPopup("Video feed error. Reloading...",'error',3000); console.log("Video feed error.");
+                setTimeout(() => { videoEl.src = "{{ url_for('video_feed') }}?ts=" + new Date().getTime(); }, 1000);
+            };*/
         });
     </script>
 </body>

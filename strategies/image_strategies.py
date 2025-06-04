@@ -5,6 +5,7 @@ from .base_strategy import ImageProcessingStrategy
 class EdgeDetectionStrategy(ImageProcessingStrategy):
     """Strategy that performs edge detection on the image."""
     def __init__(self):
+        super().__init__('edges')
         self.low_threshold = 50
         self.high_threshold = 150
 
@@ -15,6 +16,9 @@ class EdgeDetectionStrategy(ImageProcessingStrategy):
 
 class GrayscaleStrategy(ImageProcessingStrategy):
     """Strategy that converts the image to grayscale."""
+    def __init__(self):
+        super().__init__('grayscale')
+
     def process_image(self, image: np.ndarray) -> np.ndarray:
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         return cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
@@ -22,6 +26,7 @@ class GrayscaleStrategy(ImageProcessingStrategy):
 class ThresholdStrategy(ImageProcessingStrategy):
     """Strategy that applies thresholding to the image."""
     def __init__(self):
+        super().__init__('threshold')
         self.threshold = 128
         self.max_value = 255
         self.method = cv2.THRESH_BINARY
@@ -34,6 +39,7 @@ class ThresholdStrategy(ImageProcessingStrategy):
 class ContrastEnhancementStrategy(ImageProcessingStrategy):
     """Strategy that enhances image contrast using CLAHE."""
     def __init__(self):
+        super().__init__('contrast')
         self.clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
 
     def process_image(self, image: np.ndarray) -> np.ndarray:

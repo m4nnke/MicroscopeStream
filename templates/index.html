@@ -5,125 +5,256 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Microscope Control</title>
     <style>
-        body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background-color: #f4f4f4; color: #333; }
-        .container { display: flex; flex-wrap: wrap; gap: 20px; }
-        .column { flex: 1; min-width: 300px; background-color: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
-        .column h2 { color: #5a5a5a; border-bottom: 2px solid #eee; padding-bottom: 10px; }
-        .column h3 { color: #666; margin-top: 20px; }
-        label { display: block; margin-top: 10px; font-weight: bold; }
-        select, input[type="number"], input[type="text"] { width: calc(100% - 22px); padding: 10px; margin-top: 5px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
-        button { background-color: #007bff; color: white; padding: 10px 15px; border: none; border-radius: 4px; cursor: pointer; margin-top: 10px; margin-right: 5px; }
+        body { font-family: Arial, sans-serif; margin: 0; padding: 15px; background-color: #f4f4f4; color: #333; display: flex; flex-direction: column; min-height: 100vh; }
+        .container {
+            display: flex;
+            flex-wrap: nowrap;
+            gap: 15px;
+            flex-grow: 1;
+            overflow: hidden;
+            padding-top: 15px;
+        }
+        .column {
+            background-color: #fff;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+        }
+        #main-controls-column {
+            flex: 2 1 50%;
+            min-width: 400px;
+        }
+        #settings-column {
+            flex: 1 1 30%;
+            min-width: 320px;
+        }
+        #files-column {
+            flex: 1 1 20%;
+            min-width: 250px;
+        }
+        
+        .column h2 { color: #5a5a5a; border-bottom: 2px solid #eee; padding-bottom: 10px; margin-top: 0; }
+        .column h3 { color: #666; margin-top: 10px; margin-bottom: 8px; font-size: 1.1em; }
+        label { display: block; margin-top: 6px; font-weight: bold; font-size: 0.85em; }
+        select, input[type="number"], input[type="text"] { 
+            width: calc(100% - 16px); 
+            padding: 7px;
+            margin-top: 3px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+            font-size: 0.85em;
+        }
+        button { background-color: #007bff; color: white; padding: 7px 10px; border: none; border-radius: 4px; cursor: pointer; margin-top: 8px; margin-right: 5px; font-size: 0.85em; }
         button:hover { background-color: #0056b3; }
         button.stop { background-color: #dc3545; }
         button.stop:hover { background-color: #c82333; }
-        .status-light { height: 10px; width: 10px; background-color: #bbb; border-radius: 50%; display: inline-block; margin-left: 10px; }
+        .status-light { height: 9px; width: 9px; background-color: #bbb; border-radius: 50%; display: inline-block; margin-left: 7px; vertical-align: middle; }
         .status-light.active { background-color: #28a745; }
-        #videoFeed { max-width: 100%; height: auto; border: 1px solid #ddd; margin-top: 10px; }
-        ul { list-style-type: none; padding: 0; }
-        ul li { background-color: #e9ecef; margin-bottom: 5px; padding: 8px; border-radius: 4px; }
+        #videoFeed { 
+            width: 100%; 
+            height: auto; 
+            max-height: 70vh;
+            object-fit: contain; 
+            border: 1px solid #ddd; 
+            background-color: #000; 
+            margin-bottom: 15px;
+        }
+        .controls-group {
+            margin-bottom: 10px;
+        }
+        .controls-group span { font-size: 0.9em; vertical-align: middle; }
+
+        ul {
+            list-style-type: none; padding: 0; margin: 0;
+            max-height: 150px; 
+            overflow-y: auto;  
+            border: 1px solid #eee;
+            border-radius: 4px;
+        }
+        ul li { background-color: #f8f9fa; margin-bottom: 3px; padding: 6px 8px; border-radius: 3px; font-size: 0.85em; }
+        ul li:last-child { margin-bottom: 0; }
+
+        #settingsContainer {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: auto auto;
+            gap: 10px;
+            flex-grow: 1;
+        }
+        .settings-group {
+            padding: 10px;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            background-color: #fdfdfd;
+        }
+        .settings-group h3 {
+            margin-top: 0;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 6px;
+            margin-bottom: 10px;
+        }
+
+        /* Status Popup Styles */
+        #statusPopup {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 12px 25px;
+            border-radius: 6px;
+            color: white;
+            font-size: 1em;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s ease, visibility 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+        #statusPopup.visible {
+            opacity: 1;
+            visibility: visible;
+        }
+        #statusPopup.success {
+            background-color: #28a745;
+        }
+        #statusPopup.error {
+            background-color: #dc3545;
+        }
+        #statusPopup.info {
+            background-color: #17a2b8;
+        }
+        #timelapseProgress { font-size: 0.85em; margin-top: 5px; color: #337ab7;}
     </style>
 </head>
 <body>
-    <h1>Microscope Control</h1>
     <div class="container">
-        <div class="column" id="main-controls">
+        <div class="column" id="main-controls-column">
             <h2>Live Feed</h2>
-            <img id="videoFeed" src="{{ url_for('video_feed') }}" alt="Video Feed">
+            <img id="videoFeed" src="{{ url_for('video_feed') }}" alt="Video Feed Should Appear Here">
             
             <h3>Master Controls</h3>
-            <button id="startCamera">Start Camera</button>
-            <button id="stopCamera" class="stop">Stop Camera</button>
-            <span id="cameraStatus" class="status-light"></span> Camera
-            <hr>
-            <button id="startStream">Start Stream</button>
-            <button id="stopStream" class="stop">Stop Stream</button>
-            <span id="streamStatus" class="status-light"></span> Stream
-            <hr>
-            <button id="startStorage">Start Recording</button>
-            <button id="stopStorage" class="stop">Stop Recording</button>
-            <span id="storageStatus" class="status-light"></span> Recording (<span id="storageFileStatus">Idle</span>)
-            <hr>
-            <button id="startTimelapse">Start Timelapse</button>
-            <button id="stopTimelapse" class="stop">Stop Timelapse</button>
-            <span id="timelapseStatus" class="status-light"></span> Timelapse (<span id="timelapseFramesStatus">0 frames</span>)
+            <div class="controls-group">
+                <button id="startCamera">Start Camera</button>
+                <button id="stopCamera" class="stop">Stop Camera</button>
+                <span id="cameraStatus" class="status-light"></span> Camera
+            </div>
+            <div class="controls-group">
+                <button id="startStream">Start Stream</button>
+                <button id="stopStream" class="stop">Stop Stream</button>
+                <span id="streamStatus" class="status-light"></span> Stream
+            </div>
+            <div class="controls-group">
+                <button id="startStorage">Start Recording</button>
+                <button id="stopStorage" class="stop">Stop Recording</button>
+                <span id="storageStatus" class="status-light"></span> <span id="storageFileStatus">Recording Idle</span>
+            </div>
+            <div class="controls-group">
+                <button id="startTimelapse">Start Timelapse</button>
+                <button id="stopTimelapse" class="stop">Stop Timelapse</button>
+                <span id="timelapseStatus" class="status-light"></span> <span id="timelapseFramesStatus">Timelapse Idle</span>
+            </div>
         </div>
 
         <div class="column" id="settings-column">
             <h2>Settings</h2>
             <div id="settingsContainer">
-                <!-- Camera Settings -->
-                <h3>Camera</h3>
-                <label for="camResolution">Resolution:</label>
-                <select id="camResolution" data-setting-path="camera.resolution"></select>
-                <label for="camFps">FPS:</label>
-                <input type="number" id="camFps" data-setting-path="camera.fps" min="1" max="60">
-                <label for="camBrightness">Brightness (0-100):</label>
-                <input type="number" id="camBrightness" data-setting-path="camera.brightness_ui" min="0" max="100">
-                <label for="camContrast">Contrast (0-100):</label>
-                <input type="number" id="camContrast" data-setting-path="camera.contrast_ui" min="0" max="100">
-                <label for="camSaturation">Saturation (0-100):</label>
-                <input type="number" id="camSaturation" data-setting-path="camera.saturation_ui" min="0" max="100">
+                <div class="settings-group">
+                    <h3>Camera</h3>
+                    <label for="camResolution">Resolution:</label>
+                    <select id="camResolution" data-setting-path="camera.resolution"></select>
+                    <label for="camFps">FPS:</label>
+                    <input type="number" id="camFps" data-setting-path="camera.fps" min="1" max="60">
+                    <label for="camBrightness">Brightness (0-100):</label>
+                    <input type="number" id="camBrightness" data-setting-path="camera.brightness_ui" min="0" max="100">
+                    <label for="camContrast">Contrast (0-100):</label>
+                    <input type="number" id="camContrast" data-setting-path="camera.contrast_ui" min="0" max="100">
+                    <label for="camSaturation">Saturation (0-100):</label>
+                    <input type="number" id="camSaturation" data-setting-path="camera.saturation_ui" min="0" max="100">
+                </div>
 
-                <!-- Stream Settings -->
-                <h3>Stream</h3>
-                <label for="streamFps">FPS:</label>
-                <input type="number" id="streamFps" data-setting-path="stream.fps" min="1" max="60">
-                <label for="streamJpegQuality">JPEG Quality (1-100):</label>
-                <input type="number" id="streamJpegQuality" data-setting-path="stream.jpeg_quality" min="1" max="100">
-                <label for="streamProcessingMode">Processing Mode:</label>
-                <select id="streamProcessingMode" data-setting-path="stream.processing_strategy_name"></select>
+                <div class="settings-group">
+                    <h3>Stream</h3>
+                    <label for="streamFps">FPS:</label>
+                    <input type="number" id="streamFps" data-setting-path="stream.fps" min="1" max="60">
+                    <label for="streamJpegQuality">JPEG Quality (1-100):</label>
+                    <input type="number" id="streamJpegQuality" data-setting-path="stream.jpeg_quality" min="1" max="100">
+                    <label for="streamProcessingMode">Processing Mode:</label>
+                    <select id="streamProcessingMode" data-setting-path="stream.processing_strategy_name"></select>
+                </div>
 
-                <!-- Storage Settings -->
-                <h3>Storage (Recording)</h3>
-                <label for="storageFps">FPS (for recording):</label>
-                <input type="number" id="storageFps" data-setting-path="storage.fps" min="1" max="60">
-                <label for="storageProcessingMode">Processing Mode:</label>
-                <select id="storageProcessingMode" data-setting-path="storage.processing_strategy_name"></select>
-                <div>Output Directory: <span id="storageOutputDir"></span></div>
+                <div class="settings-group">
+                    <h3>Storage (Recording)</h3>
+                    <label for="storageFps">FPS (for recording):</label>
+                    <input type="number" id="storageFps" data-setting-path="storage.fps" min="1" max="60">
+                    <label for="storageProcessingMode">Processing Mode:</label>
+                    <select id="storageProcessingMode" data-setting-path="storage.processing_strategy_name"></select>
+                    <div><label>Output Dir:</label> <span id="storageOutputDir" style="font-weight:normal; font-size:0.9em;"></span></div>
+                </div>
 
-
-                <!-- Timelapse Settings -->
-                <h3>Timelapse</h3>
-                <label for="timelapseInterval">Interval (seconds):</label>
-                <input type="number" id="timelapseInterval" data-setting-path="timelapse.interval" min="0.1" step="0.1">
-                <label for="timelapseDuration">Duration (seconds, 0 for indefinite):</label>
-                <input type="number" id="timelapseDuration" data-setting-path="timelapse.duration" min="0">
-                <label for="timelapseMinFrames">Min Frames for Video:</label>
-                <input type="number" id="timelapseMinFrames" data-setting-path="timelapse.min_frames" min="1">
-                <label for="timelapseProcessingMode">Processing Mode:</label>
-                <select id="timelapseProcessingMode" data-setting-path="timelapse.processing_strategy_name"></select>
-                <div>Output Directory: <span id="timelapseOutputDir"></span></div>
-                <div id="timelapseProgress"></div>
+                <div class="settings-group">
+                    <h3>Timelapse</h3>
+                    <label for="timelapseInterval">Interval (seconds):</label>
+                    <input type="number" id="timelapseInterval" data-setting-path="timelapse.interval" min="0.1" step="0.1">
+                    <label for="timelapseDuration">Duration (seconds, 0 for indefinite):</label>
+                    <input type="number" id="timelapseDuration" data-setting-path="timelapse.duration" min="0">
+                    <label for="timelapseMinFrames">Min Frames for Video:</label>
+                    <input type="number" id="timelapseMinFrames" data-setting-path="timelapse.min_frames" min="1">
+                    <label for="timelapseProcessingMode">Processing Mode:</label>
+                    <select id="timelapseProcessingMode" data-setting-path="timelapse.processing_strategy_name"></select>
+                    <div><label>Output Dir:</label> <span id="timelapseOutputDir" style="font-weight:normal; font-size:0.9em;"></span></div>
+                    <div id="timelapseProgress"></div>
+                </div>
             </div>
-            <button id="applyAllSettings">Apply Changed Settings</button>
+            <button id="applyAllSettings" style="width:100%; padding-top:10px; padding-bottom:10px; margin-top:auto;">Apply Changed Settings</button>
         </div>
 
         <div class="column" id="files-column">
             <h2>Recordings</h2>
+            <button id="refreshRecordings" style="margin-bottom:5px;">Refresh</button>
             <ul id="recordingsList"></ul>
-            <button id="refreshRecordings">Refresh Recordings</button>
-
-            <h2>Timelapses</h2>
+            
+            <h2 style="margin-top:20px;">Timelapses</h2>
+            <button id="refreshTimelapses" style="margin-bottom:5px;">Refresh</button>
             <ul id="timelapsesList"></ul>
-            <button id="refreshTimelapses">Refresh Timelapses</button>
         </div>
     </div>
 
+    <!-- Status Popup HTML -->
+    <div id="statusPopup"></div>
+
     <script>
         // Initial data from Flask/Jinja2
+        // eslint-disable-next-line
         let AppData = {{ page_data | tojson | safe }};
         let currentSettings = AppData.settings;
         let currentStatus = AppData.status;
-        let changedSettings = {}; // To collect pending changes
+        let changedSettings = {}; 
+        let statusPopupTimeout = null;
 
-        // --- UTILITY FUNCTIONS ---
-        function getNestedValue(obj, path) {
-            return path.split('.').reduce((acc, part) => acc && acc[part], obj);
+        // --- STATUS POPUP --- 
+        function showStatusPopup(message, type = 'info', duration = 3000) {
+            const popup = document.getElementById('statusPopup');
+            if (!popup) return;
+            popup.textContent = message;
+            popup.className = 'visible '; 
+            popup.classList.add(type);
+            if (statusPopupTimeout) clearTimeout(statusPopupTimeout);
+            if (duration > 0) statusPopupTimeout = setTimeout(hideStatusPopup, duration);
+        }
+        function hideStatusPopup() {
+            const popup = document.getElementById('statusPopup');
+            if (popup) popup.classList.remove('visible');
+            if (statusPopupTimeout) { clearTimeout(statusPopupTimeout); statusPopupTimeout = null; }
         }
 
+        // --- UTILITY FUNCTIONS ---
+        function getNestedValue(obj, path) { return path.split('.').reduce((acc, part) => acc && acc[part], obj); }
         function setNestedValue(obj, path, value) {
-            const keys = path.split('.');
-            const lastKey = keys.pop();
+            const keys = path.split('.'); const lastKey = keys.pop();
             const target = keys.reduce((acc, part) => acc[part] = acc[part] || {}, obj);
             target[lastKey] = value;
         }
@@ -134,265 +265,154 @@
                 const response = await fetch(url, options);
                 if (!response.ok) {
                     const errorData = await response.json().catch(() => ({ message: response.statusText }));
-                    throw new Error(`API Error (${response.status}): ${errorData.message || 'Unknown error'}`);
+                    const errorMessage = `API Error (${response.status}): ${errorData.message || 'Unknown error'}`;
+                    showStatusPopup(errorMessage, 'error'); throw new Error(errorMessage);
                 }
                 return await response.json();
             } catch (error) {
                 console.error(error.message);
-                alert(error.message); // Simple user feedback
-                throw error; // Re-throw for further handling if needed
+                if (!error.message.startsWith('API Error')) showStatusPopup(error.message, 'error');
+                throw error; 
             }
         }
-
         async function updateSettingsAPI() {
             if (Object.keys(changedSettings).length === 0) {
-                console.log("No settings changed.");
-                return;
+                showStatusPopup("No settings have been changed.", 'info'); return;
             }
             try {
                 const data = await fetchAPI('/api/settings', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(changedSettings)
                 });
                 if (data.success) {
-                    console.log("Settings updated successfully:", data.settings);
-                    currentSettings = data.settings; // Update local cache
-                    populateUISettings(currentSettings); // Re-populate with confirmed settings
-                    changedSettings = {}; // Clear pending changes
-                    await fetchStatusAPI(); // Refresh status after settings change
-                    alert("Settings applied!");
+                    showStatusPopup("Settings applied successfully!", 'success');
+                    currentSettings = data.settings; populateUISettings(currentSettings); 
+                    changedSettings = {}; await fetchStatusAPI(); 
                 }
-            } catch (error) {
-                // Error already logged by fetchAPI
-            }
+            } catch (error) { /* Handled by fetchAPI */ }
         }
-
         async function controlModuleAPI(component, action) {
             try {
                 const data = await fetchAPI(`/api/control/${component}/${action}`, { method: 'POST' });
-                if (data.success) {
-                    console.log(data.message);
-                    alert(data.message);
-                    await fetchStatusAPI(); // Refresh status after control action
-                }
-            } catch (error) {
-                // Error already logged by fetchAPI
-            }
+                if (data.success) { showStatusPopup(data.message, 'success'); await fetchStatusAPI(); }
+            } catch (error) { /* Handled by fetchAPI */ }
         }
-        
         async function fetchStatusAPI() {
-            try {
-                const statusData = await fetchAPI('/api/status');
-                currentStatus = statusData;
-                populateUIStatus(currentStatus);
-            } catch (error) {
-                // Error already logged by fetchAPI
-            }
+            try { currentStatus = await fetchAPI('/api/status'); populateUIStatus(currentStatus); }
+            catch (error) { /* Handled by fetchAPI */ }
         }
-
         async function fetchRecordings() {
             try {
                 const data = await fetchAPI('/recordings');
-                const recordingsList = document.getElementById('recordingsList');
-                recordingsList.innerHTML = ''; // Clear existing
+                const list = document.getElementById('recordingsList'); list.innerHTML = ''; 
                 if (data.recordings && data.recordings.length > 0) {
-                    data.recordings.forEach(rec => {
-                        const li = document.createElement('li');
-                        li.textContent = rec;
-                        recordingsList.appendChild(li);
-                    });
-                } else {
-                    recordingsList.innerHTML = '<li>No recordings found.</li>';
-                }
-            } catch (error) {
-                // Error already logged by fetchAPI
-            }
+                    data.recordings.forEach(r => { const li = document.createElement('li'); li.textContent = r; list.appendChild(li); });
+                } else { list.innerHTML = '<li>No recordings.</li>'; }
+            } catch (error) { /* Handled by fetchAPI */ }
         }
-
         async function fetchTimelapses() {
             try {
                 const data = await fetchAPI('/timelapses');
-                const timelapsesList = document.getElementById('timelapsesList');
-                timelapsesList.innerHTML = ''; // Clear existing
+                const list = document.getElementById('timelapsesList'); list.innerHTML = '';
                 if (data.timelapses && data.timelapses.length > 0) {
-                    data.timelapses.forEach(lapse => {
-                        const li = document.createElement('li');
-                        li.textContent = lapse;
-                        timelapsesList.appendChild(li);
-                    });
-                } else {
-                    timelapsesList.innerHTML = '<li>No timelapses found.</li>';
-                }
-            } catch (error) {
-                 // Error already logged by fetchAPI
-            }
+                    data.timelapses.forEach(l => { const li = document.createElement('li'); li.textContent = l; list.appendChild(li); });
+                } else { list.innerHTML = '<li>No timelapses.</li>'; }
+            } catch (error) { /* Handled by fetchAPI */ }
         }
 
         // --- UI POPULATION ---
-        function populateProcessingModes(selectElement, availableModes, currentMode) {
-            selectElement.innerHTML = '';
-            availableModes.forEach(mode => {
-                const option = document.createElement('option');
-                option.value = mode;
-                option.textContent = mode.charAt(0).toUpperCase() + mode.slice(1);
-                if (mode === currentMode) {
-                    option.selected = true;
-                }
-                selectElement.appendChild(option);
-            });
+        function populateProcessingModes(el, modes, current) {
+            el.innerHTML = ''; modes.forEach(m => { const o = document.createElement('option');
+            o.value = m; o.textContent = m.charAt(0).toUpperCase() + m.slice(1); if (m === current) o.selected = true; el.appendChild(o); });
         }
-        
-        function populateCameraResolutions(selectElement, supportedResolutions, currentResolution) {
-            selectElement.innerHTML = '';
-            if (!supportedResolutions) supportedResolutions = []; // Ensure it's an array
-            if (!currentResolution) currentResolution = [0,0]; // Default if undefined
-
-            supportedResolutions.forEach(res => {
-                const option = document.createElement('option');
-                const resString = `${res[0]}x${res[1]}`;
-                option.value = JSON.stringify(res); // Store as JSON string "[w,h]"
-                option.textContent = resString;
-                if (res[0] === currentResolution[0] && res[1] === currentResolution[1]) {
-                    option.selected = true;
-                }
-                selectElement.appendChild(option);
-            });
+        function populateCameraResolutions(el, supported, current) {
+            el.innerHTML = ''; if (!supported) supported = []; if (!current) current = [0,0];
+            supported.forEach(r => { const o = document.createElement('option'); const rs = `${r[0]}x${r[1]}`;
+            o.value = JSON.stringify(r); o.textContent = rs; if (r[0] === current[0] && r[1] === current[1]) o.selected = true; el.appendChild(o); });
         }
-
-        function populateUISettings(settings) {
-            if (!settings) return;
-
-            // Camera
-            if (settings.camera) {
-                document.getElementById('camFps').value = settings.camera.fps;
-                populateCameraResolutions(document.getElementById('camResolution'), settings.camera.supported_resolutions, settings.camera.resolution);
-                document.getElementById('camBrightness').value = settings.camera.brightness_ui;
-                document.getElementById('camContrast').value = settings.camera.contrast_ui;
-                document.getElementById('camSaturation').value = settings.camera.saturation_ui;
+        function populateUISettings(s) {
+            if (!s) return;
+            if (s.camera) {
+                document.getElementById('camFps').value = s.camera.fps;
+                populateCameraResolutions(document.getElementById('camResolution'), s.camera.supported_resolutions, s.camera.resolution);
+                document.getElementById('camBrightness').value = s.camera.brightness_ui;
+                document.getElementById('camContrast').value = s.camera.contrast_ui;
+                document.getElementById('camSaturation').value = s.camera.saturation_ui;
             }
-            
-            const availableModes = settings.available_processing_modes || [];
-
-            // Stream
-            if (settings.stream) {
-                document.getElementById('streamFps').value = settings.stream.fps;
-                document.getElementById('streamJpegQuality').value = settings.stream.jpeg_quality;
-                populateProcessingModes(document.getElementById('streamProcessingMode'), availableModes, settings.stream.processing_strategy_name);
+            const modes = s.available_processing_modes || [];
+            if (s.stream) {
+                document.getElementById('streamFps').value = s.stream.fps;
+                document.getElementById('streamJpegQuality').value = s.stream.jpeg_quality;
+                populateProcessingModes(document.getElementById('streamProcessingMode'), modes, s.stream.processing_strategy_name);
             }
-
-            // Storage
-            if (settings.storage) {
-                document.getElementById('storageFps').value = settings.storage.fps;
-                populateProcessingModes(document.getElementById('storageProcessingMode'), availableModes, settings.storage.processing_strategy_name);
-                document.getElementById('storageOutputDir').textContent = settings.storage.output_dir;
+            if (s.storage) {
+                document.getElementById('storageFps').value = s.storage.fps;
+                populateProcessingModes(document.getElementById('storageProcessingMode'), modes, s.storage.processing_strategy_name);
+                document.getElementById('storageOutputDir').textContent = s.storage.output_dir;
             }
-            
-            // Timelapse
-            if (settings.timelapse) {
-                document.getElementById('timelapseInterval').value = settings.timelapse.interval;
-                document.getElementById('timelapseDuration').value = settings.timelapse.duration;
-                document.getElementById('timelapseMinFrames').value = settings.timelapse.min_frames;
-                populateProcessingModes(document.getElementById('timelapseProcessingMode'), availableModes, settings.timelapse.processing_strategy_name);
-                document.getElementById('timelapseOutputDir').textContent = settings.timelapse.output_dir;
+            if (s.timelapse) {
+                document.getElementById('timelapseInterval').value = s.timelapse.interval;
+                document.getElementById('timelapseDuration').value = s.timelapse.duration;
+                document.getElementById('timelapseMinFrames').value = s.timelapse.min_frames;
+                populateProcessingModes(document.getElementById('timelapseProcessingMode'), modes, s.timelapse.processing_strategy_name);
+                document.getElementById('timelapseOutputDir').textContent = s.timelapse.output_dir;
             }
         }
-
-        function populateUIStatus(status) {
-            if (!status) return;
-
-            document.getElementById('cameraStatus').classList.toggle('active', status.camera_running);
-            document.getElementById('streamStatus').classList.toggle('active', status.stream_active);
-            document.getElementById('storageStatus').classList.toggle('active', status.storage_active);
-            document.getElementById('storageFileStatus').textContent = status.storage_active ? (status.storage_current_file || 'Recording...') : 'Idle';
-            
-            document.getElementById('timelapseStatus').classList.toggle('active', status.timelapse_active);
-            if (status.timelapse_info) {
-                let timelapseProg = '';
-                if (status.timelapse_active) {
-                    timelapseProg = `Frames: ${status.timelapse_info.current_frames || 0}. Next cap: ${status.timelapse_info.next_capture_in}s. Next vid: ${status.timelapse_info.next_video_in}s.`;
-                } else if (status.timelapse_info.current_frames > 0) {
-                     timelapseProg = `Paused. Frames: ${status.timelapse_info.current_frames || 0}.`;
-                } else {
-                    timelapseProg = 'Idle.';
-                }
-                document.getElementById('timelapseFramesStatus').textContent = `${status.timelapse_info.current_frames || 0} frames`;
-                document.getElementById('timelapseProgress').textContent = timelapseProg;
-
+        function populateUIStatus(st) {
+            if (!st) return;
+            document.getElementById('cameraStatus').classList.toggle('active', st.camera_running);
+            document.getElementById('streamStatus').classList.toggle('active', st.stream_active);
+            document.getElementById('storageStatus').classList.toggle('active', st.storage_active);
+            document.getElementById('storageFileStatus').textContent = st.storage_active ? (st.storage_current_file || 'Recording...') : 'Recording Idle';
+            document.getElementById('timelapseStatus').classList.toggle('active', st.timelapse_active);
+            const tInfo = st.timelapse_info;
+            if (tInfo) {
+                let prog = st.timelapse_active ? `Frames: ${tInfo.current_frames || 0}. Next: ${tInfo.next_capture_in}s. Vid: ${tInfo.next_video_in}s.`
+                           : (tInfo.current_frames > 0 ? `Paused. Frames: ${tInfo.current_frames || 0}.` : 'Timelapse Idle');
+                document.getElementById('timelapseFramesStatus').textContent = `${tInfo.current_frames || 0} frames`;
+                document.getElementById('timelapseProgress').textContent = prog;
             } else {
-                 document.getElementById('timelapseFramesStatus').textContent = `0 frames`;
-                 document.getElementById('timelapseProgress').textContent = 'Idle.';
+                 document.getElementById('timelapseFramesStatus').textContent = `Timelapse Idle`;
+                 document.getElementById('timelapseProgress').textContent = '';
             }
         }
 
         // --- EVENT LISTENERS ---
         function setupEventListeners() {
-            // Control Buttons
-            document.getElementById('startCamera').addEventListener('click', () => controlModuleAPI('camera', 'start'));
-            document.getElementById('stopCamera').addEventListener('click', () => controlModuleAPI('camera', 'stop'));
-            document.getElementById('startStream').addEventListener('click', () => controlModuleAPI('stream', 'start'));
-            document.getElementById('stopStream').addEventListener('click', () => controlModuleAPI('stream', 'stop'));
-            document.getElementById('startStorage').addEventListener('click', () => controlModuleAPI('storage', 'start'));
-            document.getElementById('stopStorage').addEventListener('click', () => controlModuleAPI('storage', 'stop'));
-            document.getElementById('startTimelapse').addEventListener('click', () => controlModuleAPI('timelapse', 'start'));
-            document.getElementById('stopTimelapse').addEventListener('click', () => controlModuleAPI('timelapse', 'stop'));
-
-            // Settings Inputs - accumulate changes
-            const settingsInputs = document.querySelectorAll('#settingsContainer [data-setting-path]');
-            settingsInputs.forEach(input => {
-                input.addEventListener('change', (event) => {
-                    const path = event.target.dataset.settingPath;
-                    let value = event.target.value;
-                    // Type conversion based on input type or specific ID
-                    if (event.target.type === 'number') {
-                        value = parseFloat(value);
-                        if (isNaN(value)) {
-                            console.warn(`Invalid number for ${path}: ${event.target.value}`);
-                            // Optionally revert or show error
-                            return; 
-                        }
-                    } else if (event.target.id === 'camResolution') {
-                         try { value = JSON.parse(value); } catch (e) { console.error("Invalid resolution value", value); return; }
+            ['startCamera','stopCamera','startStream','stopStream','startStorage','stopStorage','startTimelapse','stopTimelapse'].forEach(id => {
+                const parts = id.match(/^(start|stop)([A-Z][a-zA-Z]+)$/);
+                if(parts) document.getElementById(id).addEventListener('click', () => controlModuleAPI(parts[2].toLowerCase(), parts[1]));
+            });
+            document.querySelectorAll('#settingsContainer [data-setting-path]').forEach(input => {
+                input.addEventListener('change', (e) => {
+                    const path = e.target.dataset.settingPath; let val = e.target.value;
+                    if (e.target.type === 'number') {
+                        val = parseFloat(val);
+                        if (isNaN(val)) { showStatusPopup(`Invalid number for ${path}: ${e.target.value}`, 'error'); return; }
+                    } else if (e.target.id === 'camResolution') {
+                         try { val = JSON.parse(val); } catch (err) { showStatusPopup("Invalid resolution format.", 'error'); return; }
                     }
-                    setNestedValue(changedSettings, path, value);
-                    console.log("Staged settings changes:", changedSettings);
+                    setNestedValue(changedSettings, path, val); console.log("Staged:", changedSettings);
                 });
             });
-            
             document.getElementById('applyAllSettings').addEventListener('click', updateSettingsAPI);
-
-            // File List Refresh Buttons
             document.getElementById('refreshRecordings').addEventListener('click', fetchRecordings);
             document.getElementById('refreshTimelapses').addEventListener('click', fetchTimelapses);
         }
 
         // --- INITIALIZATION ---
         document.addEventListener('DOMContentLoaded', () => {
+            const popup = document.getElementById('statusPopup'); if (popup) popup.addEventListener('click', hideStatusPopup);
             if (!currentSettings || !currentStatus) {
-                console.error("Initial page_data not loaded correctly. Check Flask template.");
-                alert("Error loading initial page data. Please refresh.");
-                // Attempt to fetch if initial data is missing (fallback)
-                // fetchStatusAPI(); 
-                // fetch('/api/settings').then(r=>r.json()).then(s => { currentSettings = s; populateUISettings(s); });
-                return;
+                showStatusPopup("Error loading initial page data. Refresh.",'error',0); console.error("Initial data error."); return;
             }
-            populateUISettings(currentSettings);
-            populateUIStatus(currentStatus);
-            setupEventListeners();
-            fetchRecordings();
-            fetchTimelapses();
-
-            // Periodically refresh status
-            setInterval(fetchStatusAPI, 5000); // Refresh status every 5 seconds
-
-            // Reload video feed if it breaks (simple approach)
-            const videoElement = document.getElementById('videoFeed');
-            videoElement.onerror = function() {
-                console.log("Video feed error. Attempting to reload...");
-                setTimeout(() => {
-                    // Add cache buster to src to force reload
-                    videoElement.src = "{{ url_for('video_feed') }}?timestamp=" + new Date().getTime();
-                }, 1000);
+            populateUISettings(currentSettings); populateUIStatus(currentStatus);
+            setupEventListeners(); fetchRecordings(); fetchTimelapses();
+            setInterval(fetchStatusAPI, 5000); 
+            const videoEl = document.getElementById('videoFeed');
+            videoEl.onerror = () => {
+                showStatusPopup("Video feed error. Reloading...",'error',3000); console.log("Video feed error.");
+                setTimeout(() => { videoEl.src = "{{ url_for('video_feed') }}?ts=" + new Date().getTime(); }, 1000);
             };
         });
     </script>

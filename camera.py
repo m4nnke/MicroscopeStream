@@ -167,46 +167,58 @@ class Camera:
     def update_settings(self, **settings) -> bool:
         """Update camera settings."""
         updated = False
+        restart_required = False
         
         if 'fps' in settings and settings['fps'] > 0:
-            self.fps = settings['fps']
-            updated = True
+            if self.fps != settings['fps']:
+                self.fps = settings['fps']
+                updated = True
+                # FPS changes that affect FrameDurationLimits might need restart or reconfiguration
+                # For now, assuming _apply_camera_settings is sufficient if camera is running.
+                # If not, a restart might be needed here.
             
         if 'resolution' in settings:
-            width, height = settings['resolution']
-            if width > 0 and height > 0:
-                self.resolution = (width, height)
-                # Resolution changes require reconfiguration
-                if self.camera and self.is_running:
-                    self.stop()
-                    self.start()
-                return True
+            new_resolution = tuple(settings['resolution'])
+            if self.resolution != new_resolution:
+                width, height = new_resolution
+                if width > 0 and height > 0:
+                    self.resolution = new_resolution
+                    updated = True
+                    restart_required = True # Resolution changes require camera restart
                 
-        if 'brightness' in settings:
-            # Convert 0-100 to -1.0 to 1.0
-            self.brightness = (float(settings['brightness']) / 50.0) - 1.0
-            updated = True
+        # Expecting UI values (0-100) and converting to internal camera control values
+        if 'brightness_ui' in settings:
+            new_brightness_internal = (float(settings['brightness_ui']) / 50.0) - 1.0
+            if self.brightness != new_brightness_internal:
+                self.brightness = new_brightness_internal
+                updated = True
             
-        if 'contrast' in settings:
-            # Convert 0-100 to 0.0 to 4.0
-            self.contrast = float(settings['contrast']) / 25.0
-            updated = True
+        if 'contrast_ui' in settings:
+            new_contrast_internal = float(settings['contrast_ui']) / 25.0
+            if self.contrast != new_contrast_internal:
+                self.contrast = new_contrast_internal
+                updated = True
             
-        if 'saturation' in settings:
-            # Convert 0-100 to 0.0 to 4.0
-            self.saturation = float(settings['saturation']) / 25.0
-            updated = True
-            
-        #if 'exposure' in settings:
-            # Convert exposure value to microseconds
-            #ev = int(settings['exposure'])
-            #if ev < 0:  # Auto exposure
-                #self.exposure = 0
-            #else:
-                #self.exposure = int(1000 * (2 ** ev))  # Convert EV to microseconds
-            #updated = True
-            
+        if 'saturation_ui' in settings:
+            new_saturation_internal = float(settings['saturation_ui']) / 25.0
+            if self.saturation != new_saturation_internal:
+                self.saturation = new_saturation_internal
+                updated = True
+
+        # if 'exposure_ui' in settings: # Placeholder for exposure UI if implemented
+        #     # Convert exposure_ui (e.g., EV steps or 0 for auto) to self.exposure (microseconds)
+        #     # Example: if settings['exposure_ui'] == 0: self.exposure = 0 else: self.exposure = convert_ev_to_microseconds(settings['exposure_ui'])
+        #     updated = True
+
+        if restart_required and self.is_running:
+            print("Camera restart required due to settings change.")
+            self.stop()
+            self.start()
+            # updated is already true if restart_required
+            return True # Return after restart
+
         if updated and self.camera and self.is_running:
+            print("Applying camera settings on-the-fly.")
             self._apply_camera_settings()
             
         return updated

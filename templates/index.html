@@ -158,7 +158,7 @@
                 <span id="timelapseStatus" class="status-light"></span> <span id="timelapseFramesStatus">Timelapse Idle</span>
             </div>
             <div class="controls-group">
-                <a href="{{ url_for('capture_high_res_still') }}" target="_blank" rel="noopener noreferrer" class="button" style="text-decoration: none; display: inline-block;">Capture Max Res Still</a>
+                <button id="captureStillButton">Capture Max Res Still</button>
             </div>
         </div>
 
@@ -450,6 +450,9 @@
             document.getElementById('refreshRecordings').addEventListener('click', fetchRecordings);
             document.getElementById('refreshTimelapses').addEventListener('click', fetchTimelapses);
             document.getElementById('refreshStills').addEventListener('click', fetchStills);
+            document.getElementById('captureStillButton').addEventListener('click', () => {
+                window.open("{{ url_for('capture_high_res_still') }}", '_blank');
+            });
         }
 
         // --- INITIALIZATION ---
@@ -462,10 +465,10 @@
             setupEventListeners(); fetchRecordings(); fetchTimelapses(); fetchStills();
             setInterval(fetchStatusAPI, 5000); 
             const videoEl = document.getElementById('videoFeed');
-            videoEl.onerror = () => {
+            /*videoEl.onerror = () => {
                 showStatusPopup("Video feed error. Reloading...",'error',3000); console.log("Video feed error.");
                 setTimeout(() => { videoEl.src = "{{ url_for('video_feed') }}?ts=" + new Date().getTime(); }, 1000);
-            };
+            };*/
         });
     </script>
 </body>

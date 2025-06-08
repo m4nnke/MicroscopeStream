@@ -1,0 +1,51 @@
+@startuml
+' skinparam to improve readability
+skinparam classAttributeIconSize 0
+skinparam monochrome true
+skinparam linetype ortho
+
+title Observer Pattern: Camera and Output Modules
+
+' Subject (Observable)
+class Camera {
+  - output_modules: List<OutputModule>
+  + add_output_module(module: OutputModule): bool
+  + remove_output_module(module: OutputModule): bool
+  # _capture_frames(): void
+}
+
+' Observer Interface (Abstract Class)
+abstract class OutputModule {
+  + is_running: bool
+  + add_frame(frame: numpy.ndarray): void
+  + should_process_frame(): bool
+  + get_required_camera_fps(): float
+  .. Abstract Methods ..
+  {abstract} + process_frames(): void
+  {abstract} + get_frame(): any
+}
+
+' Concrete Observers
+class StreamManager extends OutputModule {
+  + process_frames(): void
+  + get_frame(): bytes
+}
+
+class StorageManager extends OutputModule {
+  + process_frames(): void
+  + get_frame(): numpy.ndarray
+}
+
+class TimelapseManager extends OutputModule {
+  + process_frames(): void
+  + get_frame(): numpy.ndarray
+}
+
+' Relationships
+Camera "1" o--> "*" OutputModule : contains
+
+note "For each captured frame,\n_capture_frames() iterates through\noutput_modules and calls:\n<b>module.add_frame(frame)</b>" as N1
+Camera .. N1
+N1 .. OutputModule
+
+@enduml 

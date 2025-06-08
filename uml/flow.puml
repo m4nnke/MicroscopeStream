@@ -1,0 +1,114 @@
+@startuml
+skinparam sequenceArrowThickness 2
+skinparam roundcorner 20
+skinparam maxmessagesize 300
+skinparam sequenceParticipant padding 20
+
+actor User
+participant "Web Browser" as Web
+participant "Flask App (app.py)" as App
+participant "Camera (camera.py)" as Cam
+participant "StreamManager" as StreamMgr
+participant "StorageManager" as StorageMgr
+participant "TimelapseManager" as TlMgr
+participant "ConfigManager" as ConfigMgr
+
+== Application Startup ==
+App -> ConfigMgr: Initialize()
+App -> Cam: Initialize()
+App -> StreamMgr: Initialize()
+App -> StorageMgr: Initialize()
+App -> TlMgr: Initialize()
+App -> Cam: add_output_module(StreamMgr)
+App -> Cam: add_output_module(StorageMgr)
+App -> Cam: add_output_module(TlMgr)
+App -> App: apply_module_configurations()
+App -> ConfigMgr: get_settings()
+ConfigMgr --> App: settings
+App -> Cam: update_settings(cam_settings)
+App -> StreamMgr: set_fps(stream_settings)
+App -> StorageMgr: set_fps(storage_settings)
+App -> TlMgr: set_frametime(timelapse_settings)
+
+== User Accesses Web Interface ==
+User -> Web: Opens IP address
+Web -> App: GET /
+App -> ConfigMgr: get_settings()
+App -> Cam: get_status()
+App -> StreamMgr: get_status()
+App -> StorageMgr: get_status()
+App -> TlMgr: get_status()
+App --> Web: HTML (index.html)
+Web --> User: Displays UI
+
+== Scenario: User Starts Live Stream ==
+User -> Web: Clicks "Start Camera"
+Web -> App: POST /api/control/camera/start
+App -> Cam: start()
+Cam -> Cam: Thread.start(_capture_frames)
+note right of Cam: Camera is now capturing frames at idle FPS.\nFrames are passed to active modules.
+
+User -> Web: Clicks "Start Stream"
+Web -> App: POST /api/control/stream/start
+App -> StreamMgr: start()
+StreamMgr -> StreamMgr: Thread.start(process_frames)
+App -> App: update_camera_fps_based_on_outputs()
+App -> StreamMgr: get_required_camera_fps()
+StreamMgr --> App: stream_fps
+App -> Cam: update_capture_fps(stream_fps)
+note right of Cam: Camera may restart to apply new FPS.
+
+Web -> App: GET /video_feed
+App -> StreamMgr: generate_frames()
+
+loop Frame Capture & Stream
+    Cam -> Cam: capture_array()
+    Cam -> StreamMgr: add_frame(frame)
+    StreamMgr -> StreamMgr: frame_queue.put(frame)
+
+    StreamMgr -> StreamMgr: frame_queue.get()
+    StreamMgr -> StreamMgr: process_frame() (e.g. apply filter)
+    StreamMgr -> StreamMgr: cv2.imencode('.jpg')
+    StreamMgr -> App: yield frame bytes
+    App -> Web: (multipart/x-mixed-replace response)
+    Web -> User: Displays video frame
+end
+
+== Scenario: User Starts Recording ==
+User -> Web: Clicks "Start Recording"
+Web -> App: POST /api/control/storage/start
+App -> StorageMgr: start()
+StorageMgr -> StorageMgr: Thread.start(process_frames)
+
+App -> App: update_camera_fps_based_on_outputs()
+App -> StreamMgr: get_required_camera_fps()
+App -> StorageMgr: get_required_camera_fps()
+note right of App: App calculates max(stream_fps, storage_fps)
+App -> Cam: update_capture_fps(max_fps)
+note right of Cam: Camera may restart if FPS changes.
+
+loop Frame Capture & Storage
+    Cam -> Cam: capture_array()
+    Cam -> StreamMgr: add_frame(frame)
+    Cam -> StorageMgr: add_frame(frame)
+    StorageMgr -> StorageMgr: frame_queue.put(frame)
+
+    StorageMgr -> StorageMgr: frame_queue.get()
+    alt First Frame
+        StorageMgr -> StorageMgr: _ensure_writer(frame)
+        note right of StorageMgr: Initializes cv2.VideoWriter with frame dimensions.
+    end
+    StorageMgr -> StorageMgr: writer.write(frame)
+end
+
+== Scenario: User Stops Recording ==
+User -> Web: Clicks "Stop Recording"
+Web -> App: POST /api/control/storage/stop
+App -> StorageMgr: stop()
+StorageMgr -> StorageMgr: writer.release()
+note right of StorageMgr: Video file is saved.
+App -> App: update_camera_fps_based_on_outputs()
+App -> Cam: update_capture_fps(new_fps)
+note right of Cam: FPS is lowered to what StreamManager requires, or idle FPS.
+
+@enduml 

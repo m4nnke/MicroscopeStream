@@ -1,0 +1,51 @@
+@startuml
+title Application State Diagram
+
+skinparam state {
+  BackgroundColor<<ON>> #87CEEB
+  BackgroundColor<<COMPILING>> #FFD700
+  BorderColor #505050
+  ArrowColor #444444
+}
+
+state SystemState {
+    state Camera {
+      [*] --> OFF
+      OFF -[#green]-> ON : start
+      ON <<ON>> -[#red]-> OFF : stop
+    }
+
+    --
+
+    state Stream {
+      [*] --> STOPPED
+      STOPPED -[#green]-> RUNNING : start
+      RUNNING <<ON>> -[#red]-> STOPPED : stop
+    }
+
+    --
+
+    state Record {
+      [*] --> STOPPED
+      STOPPED -[#green]-> RUNNING : start
+      RUNNING <<ON>> -[#red]-> STOPPED : stop
+    }
+
+    --
+
+    state Timelapse {
+        [*] --> STOPPED
+        STOPPED -[#green]-> CAPTURING : start
+        CAPTURING <<ON>> -[#red]-> STOPPED : stop
+        CAPTURING --> COMPILING : duration met
+        COMPILING <<COMPILING>> --> CAPTURING : continue
+        COMPILING --> STOPPED : finish
+    }
+}
+
+note right of SystemState
+  Camera FPS is set to max required FPS
+  of all concurrently running modules.
+end note
+
+@enduml 

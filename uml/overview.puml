@@ -1,0 +1,99 @@
+@startuml
+
+hide empty members
+
+class Application
+
+class ConfigModule {
+  - settings: dict
+  + get_settings()
+  + update_settings()
+  + get_processing_strategy()
+}
+
+class Camera {
+  - is_running: bool
+  - output_modules: List~OutputModule~
+  + start()
+  + stop()
+  + add_output_module(OutputModule)
+  - _capture_frames()
+}
+
+package OutputModules <<Rectangle>> {
+  abstract class OutputModule {
+    - is_running: bool
+    - frame_queue: Queue
+    - processing_strategy: ProcessingStrategy
+    + start()
+    + stop()
+    + add_frame(frame)
+    + set_processing_strategy(ProcessingStrategy)
+    + {abstract} process_frames()
+  }
+
+  class StreamModule {
+    + process_frames()
+    + generate_frames()
+  }
+
+  class StorageModule {
+    - writer: VideoWriter
+    + process_frames()
+    - _ensure_writer()
+  }
+
+  class TimelapseModule {
+    - frames: list
+    - interval: float
+    + process_frames()
+    - _create_timelapse()
+  }
+}
+
+package ProcessingStrategies <<Rectangle>> {
+  abstract class ProcessingStrategy {
+    + {abstract} process_image(image)
+  }
+  class NoOpStrategy {
+    + process_image(image)
+  }
+  class EdgeDetectionStrategy {
+    + process_image(image)
+  }
+  class GrayscaleStrategy {
+    + process_image(image)
+  }
+  class ThresholdStrategy {
+    + process_image(image)
+  }
+  class ContrastEnhancementStrategy {
+    + process_image(image)
+  }
+  class OCRStrategy {
+    + process_image(image)
+  }
+}
+
+Application *-right- ConfigModule
+Application *-- Camera
+Application *-- StreamModule
+Application *-- StorageModule
+Application *-- TimelapseModule
+
+Camera o-- "1..*" OutputModule : observes
+
+OutputModule <|-- StreamModule
+OutputModule <|-- StorageModule
+OutputModule <|-- TimelapseModule
+
+OutputModule o-left- "1" ProcessingStrategy : uses
+
+ProcessingStrategy <|-- NoOpStrategy
+ProcessingStrategy <|-- EdgeDetectionStrategy
+ProcessingStrategy <|- GrayscaleStrategy
+ProcessingStrategy <|-left- ThresholdStrategy
+ProcessingStrategy <|-- ContrastEnhancementStrategy
+ProcessingStrategy <|-- OCRStrategy
+
+@enduml 

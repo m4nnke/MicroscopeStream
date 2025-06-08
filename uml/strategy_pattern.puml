@@ -1,0 +1,63 @@
+@startuml
+' Strategy Pattern UML Diagram for Output Modules
+
+skinparam classAttributeIconSize 0
+skinparam classBackgroundColor LightBlue
+skinparam arrowColor Black
+skinparam classBorderColor Black
+
+abstract class ProcessingStrategy {
+  + {abstract} process_image(image: np.ndarray): np.ndarray
+}
+
+class NoOpStrategy extends ProcessingStrategy {
+  + process_image(image: np.ndarray): np.ndarray
+}
+
+class EdgeDetectionStrategy extends ProcessingStrategy {
+  + process_image(image: np.ndarray): np.ndarray
+}
+
+class GrayscaleStrategy extends ProcessingStrategy {
+  + process_image(image: np.ndarray): np.ndarray
+}
+
+class ThresholdStrategy extends ProcessingStrategy {
+  + process_image(image: np.ndarray): np.ndarray
+}
+
+class ContrastEnhancementStrategy extends ProcessingStrategy {
+  + process_image(image: np.ndarray): np.ndarray
+}
+
+
+abstract class OutputModule {
+  # processing_strategy: ProcessingStrategy
+  + set_processing_strategy(strategy: ProcessingStrategy): void
+  + process_frame(frame): np.ndarray
+}
+
+OutputModule o-- "1" ProcessingStrategy : uses
+
+note right of OutputModule
+  <b>Context</b>
+  Maintains a reference to a Strategy object.
+  Can be configured with a Concrete Strategy.
+  Delegates the processing to the strategy object.
+end note
+
+note top of NoOpStrategy
+  <b>Concrete Strategies</b>
+  Implement the algorithm
+  defined by the Strategy interface.
+end note
+
+note top of ProcessingStrategy
+  <b>Strategy</b>
+  Declares an interface common to all
+  supported algorithms. The Context uses
+  this interface to call the algorithm
+  defined by a Concrete Strategy.
+end note
+
+@enduml 

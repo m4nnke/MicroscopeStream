@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 import numpy as np
 
-class ImageProcessingStrategy(ABC):
+class ProcessingStrategy(ABC):
     def __init__(self, name: str):
         self.name = name
 
@@ -18,7 +18,7 @@ class ImageProcessingStrategy(ABC):
         """
         pass
 
-class NoOpStrategy(ImageProcessingStrategy):
+class NoOpStrategy(ProcessingStrategy):
     """Strategy that performs no processing on the image."""
     def __init__(self):
         super().__init__('none')

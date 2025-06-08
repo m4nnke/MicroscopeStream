@@ -16,7 +16,7 @@ PROCESSING_STRATEGIES = {
     # 'ocr': OCRStrategy() # If you have it
 }
 
-class ConfigManager:
+class ConfigModule:
     def __init__(self):
         self.settings = {
             "camera": {

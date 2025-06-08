@@ -4,7 +4,7 @@ from datetime import datetime
 from output_module import OutputModule
 import queue # For specific exception handling
 
-class StorageManager(OutputModule):
+class StorageModule(OutputModule):
     """Handles video recording and saving."""
     
     def __init__(self, name="storage", output_dir="recordings"):

@@ -3,10 +3,10 @@ import threading
 import queue
 import time
 from typing import Optional, TypeVar
-from strategies.base_strategy import ImageProcessingStrategy, NoOpStrategy
+from strategies.base_strategy import ProcessingStrategy, NoOpStrategy
 
 # Generic type for ImageProcessingStrategy subclasses
-StrategyType = TypeVar('StrategyType', bound=ImageProcessingStrategy)
+StrategyType = TypeVar('StrategyType', bound=ProcessingStrategy)
 
 class OutputModule(ABC):
     """Base class for all output modules (streaming, recording, timelapse)."""
@@ -20,7 +20,7 @@ class OutputModule(ABC):
         self.fps = 10  # Default FPS
         self.frame_interval = 1.0 / self.fps  # Time between frames
         self.last_frame_time = 0
-        self.processing_strategy: Optional[ImageProcessingStrategy] = None
+        self.processing_strategy: Optional[ProcessingStrategy] = None
 
     def start(self) -> bool:
         """Start the output module processing."""

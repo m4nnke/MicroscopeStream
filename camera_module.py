@@ -4,7 +4,7 @@ from typing import Optional, List
 import numpy as np
 from picamera2 import Picamera2
 import libcamera
-from output_module import OutputModule
+from outputs.output_module import OutputModule
 
 # --- Global Configuration ---
 DEFAULT_IDLE_CAMERA_FPS = 1/20  # FPS when no modules are active (e.g., 1 frame every 20 seconds)

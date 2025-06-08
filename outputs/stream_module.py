@@ -2,7 +2,7 @@ import cv2
 from output_module import OutputModule
 import time
 
-class StreamManager(OutputModule):
+class StreamModule(OutputModule):
     """Handles MJPEG streaming of camera frames."""
     
     def __init__(self, name="stream"):

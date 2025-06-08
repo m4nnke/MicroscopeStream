@@ -5,7 +5,7 @@ from datetime import datetime
 from output_module import OutputModule
 import queue # For specific exception handling
 
-class TimelapseManager(OutputModule):
+class TimelapseModule(OutputModule):
     """Handles timelapse capture and video creation."""
     
     def __init__(self, name="timelapse", output_dir="timelapses"):

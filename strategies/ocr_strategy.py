@@ -3,9 +3,9 @@ import numpy as np
 import pytesseract
 from PIL import Image
 from io import BytesIO
-from .base_strategy import ImageProcessingStrategy
+from .base_strategy import ProcessingStrategy
 
-class OCRStrategy(ImageProcessingStrategy):
+class OCRStrategy(ProcessingStrategy):
     def __init__(self):
         """Initialize OCR strategy with default parameters."""
         self.font = cv2.FONT_HERSHEY_SIMPLEX

@@ -4,26 +4,26 @@ import cv2
 import io
 import time
 
-from camera import Camera, DEFAULT_IDLE_CAMERA_FPS
-from stream_manager import StreamManager
-from storage_manager import StorageManager
-from timelapse_manager import TimelapseManager
-from config_manager import ConfigManager, PROCESSING_STRATEGIES # Import global PROCESSING_STRATEGIES
+from camera_module import Camera, DEFAULT_IDLE_CAMERA_FPS
+from outputs.stream_module import StreamModule
+from outputs.storage_module import StorageModule
+from outputs.timelapse_module import TimelapseModule
+from config_module import ConfigModule, PROCESSING_STRATEGIES # Import global PROCESSING_STRATEGIES
 
 app = Flask(__name__)
 
 # --- Global Configuration ---
-# DEFAULT_IDLE_CAMERA_FPS = 1/20  # Moved to camera.py
+# DEFAULT_IDLE_CAMERA_FPS = 1/20  # Moved to camera_module.py
 # --- End Global Configuration ---
 
 # Initialize Configuration Manager
-config_manager = ConfigManager()
+config_manager = ConfigModule()
 
 # Initialize camera and modules
 camera = Camera() # Camera will be configured by apply_module_configurations
-stream_manager = StreamManager(name="stream") # Names are important for config mapping
-storage_manager = StorageManager(name="storage", output_dir=config_manager.get_storage_settings().get("output_dir", "recordings"))
-timelapse_manager = TimelapseManager(name="timelapse", output_dir=config_manager.get_timelapse_settings().get("output_dir", "timelapses"))
+stream_manager = StreamModule(name="stream") # Names are important for config mapping
+storage_manager = StorageModule(name="storage", output_dir=config_manager.get_storage_settings().get("output_dir", "recordings"))
+timelapse_manager = TimelapseModule(name="timelapse", output_dir=config_manager.get_timelapse_settings().get("output_dir", "timelapses"))
 
 # Register modules with camera
 camera.add_output_module(stream_manager)
@@ -62,7 +62,7 @@ def apply_module_configurations():
         brightness_ui=cam_config['brightness_ui'], # Pass UI values, camera.update_settings handles conversion
         contrast_ui=cam_config['contrast_ui'],
         saturation_ui=cam_config['saturation_ui']
-        # exposure_ui will be handled if/when implemented in camera.py and config_manager
+        # exposure_ui will be handled if/when implemented in camera_module.py and config_manager
     )
 
     # Configure Stream Manager

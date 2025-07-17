@@ -5,6 +5,7 @@ import numpy as np
 from picamera2 import Picamera2
 import libcamera
 from outputs.output_module import OutputModule
+from lighting_module import LightingController
 
 # --- Global Configuration ---
 DEFAULT_IDLE_CAMERA_FPS = 1/20  # FPS when no modules are active (e.g., 1 frame every 20 seconds)
@@ -29,7 +30,14 @@ class Camera:
         
         self.sensor_modes = [] # To store sensor capabilities
         self.max_sensor_resolution = None # Store max resolution
-        
+
+        # Lighting control
+        self.lighting = LightingController(pin=18, frequency=500)
+        self._last_frame_time = 0
+        self._light_on_time = None
+        self._light_min_on_interval = 3.0  # seconds
+        self._light_buffer = 0.05  # buffer to avoid flicker
+    
     def start(self) -> bool:
         """Start the camera and frame capture thread."""
         if self.is_running:
@@ -97,7 +105,10 @@ class Camera:
             except:
                 pass
             self.camera = None
-            
+        # Clean up lighting
+        if self.lighting:
+            self.lighting.turn_off()
+            self.lighting.cleanup()
         return True
         
     def add_output_module(self, module: OutputModule) -> bool:
@@ -117,45 +128,68 @@ class Camera:
     def _capture_frames(self):
         """Continuously capture frames and distribute to output modules."""
         last_frame_time = 0
-        # frame_interval will be dynamic based on self.current_capture_fps
-        
+        light_on = False
         while self.is_running and self.camera:
             frame_interval = 1.0 / self.current_capture_fps
             current_time = time.time()
             elapsed = current_time - last_frame_time
-            
-            # Maintain FPS
-            if elapsed < frame_interval:
-                # Sleep for a short duration, ensuring it's positive
-                # and capped to avoid excessively long sleeps if fps is very low.
-                sleep_duration = frame_interval - elapsed
-                if self.current_capture_fps > 0: # Avoid division by zero
-                     time.sleep(max(0.001, min(sleep_duration, 1.0 / self.current_capture_fps)))
-                else: # If FPS is zero, perhaps a longer, but still capped sleep
-                    time.sleep(0.1)
 
-                continue
-                
+            # --- Lighting logic ---
+            if frame_interval >= self._light_min_on_interval:
+                # Timelapse/slow mode: turn on light 3s before capture, but keep total interval constant
+                time_since_last = current_time - last_frame_time
+                time_until_next = frame_interval - time_since_last
+                if time_until_next > self._light_min_on_interval:
+                    # Wait until 3s before next capture
+                    time.sleep(time_until_next - self._light_min_on_interval)
+                    current_time = time.time()
+                    time_since_last = current_time - last_frame_time
+                    time_until_next = frame_interval - time_since_last
+                # Turn on light 3s before capture
+                if not light_on:
+                    self.lighting.turn_on()
+                    light_on = True
+                # Wait remaining time (up to 3s)
+                if time_until_next > 0:
+                    time.sleep(time_until_next)
+            else:
+                # Fast mode: keep light on
+                if not light_on:
+                    self.lighting.turn_on()
+                    light_on = True
+                # Maintain FPS
+                if elapsed < frame_interval:
+                    sleep_duration = frame_interval - elapsed
+                    if self.current_capture_fps > 0:
+                        time.sleep(max(0.001, min(sleep_duration, 1.0 / self.current_capture_fps)))
+                    else:
+                        time.sleep(0.1)
+                    continue
+
             # Capture frame
             try:
                 frame = self.camera.capture_array("main")
-                print(f"Frame captured at {current_time}, interval: {elapsed:.4f}s, target_fps: {self.current_capture_fps}")
+                print(f"Frame captured at {time.time()}, interval: {elapsed:.4f}s, target_fps: {self.current_capture_fps}")
             except Exception as e:
                 print(f"Error capturing frame: {e}")
-                # Attempt to recover or log error, possibly break loop if critical
                 if "Camera has been stopped" in str(e) or "Camera is not streaming" in str(e):
                     print("Camera appears to be stopped or not streaming. Stopping capture.")
-                    self.is_running = False # Stop the loop
-                time.sleep(0.1) # Avoid busy-looping on error
+                    self.is_running = False
+                time.sleep(0.1)
                 continue
 
             # Distribute frame to all active output modules
             for module in self.output_modules:
                 if module.is_running and module.should_process_frame():
                     module.add_frame(frame.copy())
-                    
-            last_frame_time = current_time
-            
+            last_frame_time = time.time()
+
+            # Turn off light after capture if in timelapse/slow mode
+            if frame_interval >= self._light_min_on_interval:
+                if light_on:
+                    self.lighting.turn_off()
+                    light_on = False
+                    self._light_on_time = None
     def _apply_camera_parameters(self):
         """Apply non-FPS camera parameters like brightness, contrast, saturation."""
         if not self.camera or not hasattr(self.camera, 'camera_controls') or not self.camera.camera_controls:

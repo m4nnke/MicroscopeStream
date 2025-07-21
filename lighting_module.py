@@ -1,7 +1,5 @@
-try:
-    import RPi.GPIO as GPIO
-except ImportError:
-    GPIO = None  # Allow import on non-RPi systems for dev/testing
+import RPi.GPIO as GPIO
+
 
 class LightingController:
     """
@@ -15,12 +13,11 @@ class LightingController:
         self.is_on = False
         self._pwm = None
         self._initialized = False
-        if GPIO:
-            GPIO.setmode(GPIO.BCM)
-            GPIO.setup(self.pin, GPIO.OUT)
-            self._pwm = GPIO.PWM(self.pin, self.frequency)
-            self._pwm.start(100)  # Start with LED OFF
-            self._initialized = True
+        GPIO.setmode(GPIO.BCM)
+        GPIO.setup(self.pin, GPIO.OUT)
+        self._pwm = GPIO.PWM(self.pin, self.frequency)
+        self._pwm.start(100)  # Start with LED OFF
+        self._initialized = True
 
     def turn_on(self, duty_cycle=0):
         if self._initialized and self._pwm:

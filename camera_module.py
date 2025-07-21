@@ -32,7 +32,7 @@ class Camera:
         self.max_sensor_resolution = None # Store max resolution
 
         # Lighting control
-        self.lighting = LightingController(pin=18, frequency=500)
+        self.lighting = None
         self._last_frame_time = 0
         self._light_on_time = None
         self._light_min_on_interval = 3.0  # seconds
@@ -45,6 +45,7 @@ class Camera:
             
         try:
             self.camera = Picamera2()
+            self.lighting = LightingController(pin=18, frequency=500)
             
             # Get sensor capabilities
             try:
@@ -91,6 +92,8 @@ class Camera:
             
     def stop(self) -> bool:
         """Stop the camera and release resources."""
+        self.lighting.cleanup()
+
         if not self.is_running:
             return False
             

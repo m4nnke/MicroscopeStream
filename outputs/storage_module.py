@@ -1,7 +1,7 @@
 import cv2
 import os
 from datetime import datetime
-from output_module import OutputModule
+from outputs.output_module import OutputModule
 import queue # For specific exception handling
 
 class StorageModule(OutputModule):

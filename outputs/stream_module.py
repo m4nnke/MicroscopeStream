@@ -1,5 +1,5 @@
 import cv2
-from output_module import OutputModule
+from outputs.output_module import OutputModule
 import time
 
 class StreamModule(OutputModule):

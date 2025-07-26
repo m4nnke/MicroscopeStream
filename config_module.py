@@ -49,7 +49,8 @@ class ConfigModule:
                 "output_dir": "timelapses",
                 "processing_strategy_name": "none"
             },
-            "available_processing_modes": list(PROCESSING_STRATEGIES.keys())
+            "available_processing_modes": list(PROCESSING_STRATEGIES.keys()),
+            "well_label": ""  # Add well_label to global settings
         }
 
     def get_settings(self):
@@ -72,6 +73,14 @@ class ConfigModule:
         """Gets the strategy object for a given module."""
         strategy_name = self.settings.get(module_name, {}).get("processing_strategy_name", "none")
         return PROCESSING_STRATEGIES.get(strategy_name, PROCESSING_STRATEGIES['none'])
+
+    def get_well_label(self):
+        """Return the current well label (e.g., 'A1', 'B5')."""
+        return self.settings.get("well_label", "")
+
+    def set_well_label(self, label):
+        """Set the current well label."""
+        self.settings["well_label"] = label
 
     def update_settings(self, new_settings):
         """

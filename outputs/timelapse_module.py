@@ -5,6 +5,7 @@ from datetime import datetime
 from outputs.output_module import OutputModule
 import queue # For specific exception handling
 import glob
+from app import config_manager  # Add this import at the top
 
 class TimelapseModule(OutputModule):
     """Handles timelapse capture and video creation."""
@@ -84,7 +85,11 @@ class TimelapseModule(OutputModule):
 
         # Output video path
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        video_filename = f"timelapse_{timestamp}.mp4"
+        well_label = config_manager.get_well_label()
+        if well_label:
+            video_filename = f"{well_label}_timelapse_{timestamp}.mp4"
+        else:
+            video_filename = f"timelapse_{timestamp}.mp4"
         output_path = os.path.join(self.session_dir, video_filename)
 
         # Get frame dimensions from first frame

@@ -209,6 +209,11 @@
                     <div><label>Output Dir:</label> <span id="timelapseOutputDir" style="font-weight:normal; font-size:0.9em;"></span></div>
                     <div id="timelapseProgress"></div>
                 </div>
+                <div class="settings-group">
+                    <h3>Microplate Well Selection</h3>
+                    <div id="wellGrid" style="display: grid; grid-template-columns: repeat(12, 1fr); gap: 2px; margin-bottom: 10px;"></div>
+                    <div>Selected Well: <span id="selectedWellLabel">None</span></div>
+                </div>
             </div>
             <button id="applyAllSettings" style="width:100%; padding-top:10px; padding-bottom:10px; margin-top:auto;">Apply Changed Settings</button>
         </div>
@@ -467,8 +472,63 @@
             });
         }
 
+        // --- WELL SELECTION ---
+        const wellRows = ['A','B','C','D','E','F','G','H'];
+        const wellCols = Array.from({length: 12}, (_, i) => i+1);
+        let selectedWell = null;
+
+        function renderWellGrid(selected) {
+            const grid = document.getElementById('wellGrid');
+            grid.innerHTML = '';
+            for (let r = 0; r < wellRows.length; r++) {
+                for (let c = 0; c < wellCols.length; c++) {
+                    const well = wellRows[r] + wellCols[c];
+                    const btn = document.createElement('button');
+                    btn.textContent = well;
+                    btn.style.padding = '4px 6px';
+                    btn.style.fontSize = '0.9em';
+                    btn.style.margin = '0';
+                    btn.style.border = '1px solid #ccc';
+                    btn.style.background = (selected === well) ? '#007bff' : '#f8f9fa';
+                    btn.style.color = (selected === well) ? 'white' : '#333';
+                    btn.style.cursor = 'pointer';
+                    btn.onclick = () => selectWell(well);
+                    grid.appendChild(btn);
+                }
+            }
+        }
+
+        function selectWell(well) {
+            fetch('/api/well_label', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ well_label: well })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    selectedWell = data.well_label;
+                    document.getElementById('selectedWellLabel').textContent = selectedWell;
+                    renderWellGrid(selectedWell);
+                    showStatusPopup('Selected well: ' + selectedWell, 'success');
+                } else {
+                    showStatusPopup('Failed to set well: ' + (data.message || ''), 'error');
+                }
+            });
+        }
+
+        function fetchCurrentWell() {
+            fetch('/api/well_label')
+                .then(res => res.json())
+                .then(data => {
+                    selectedWell = data.well_label || null;
+                    document.getElementById('selectedWellLabel').textContent = selectedWell || 'None';
+                    renderWellGrid(selectedWell);
+                });
+        }
+
         // --- INITIALIZATION ---
-        document.addEventListener('DOMContentLoaded', () => {
+        document.addEventListener('DOMContentLoaded', function() {
             const popup = document.getElementById('statusPopup'); if (popup) popup.addEventListener('click', hideStatusPopup);
             if (!currentSettings || !currentStatus) {
                 showStatusPopup("Error loading initial page data. Refresh.",'error',0); console.error("Initial data error."); return;
@@ -481,6 +541,7 @@
                 showStatusPopup("Video feed error. Reloading...",'error',3000); console.log("Video feed error.");
                 setTimeout(() => { videoEl.src = "{{ url_for('video_feed') }}?ts=" + new Date().getTime(); }, 1000);
             };*/
+            fetchCurrentWell(); // Fetch the initial well label
         });
     </script>
 </body>

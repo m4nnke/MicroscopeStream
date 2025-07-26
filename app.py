@@ -214,32 +214,21 @@ def list_timelapses():
 
 @app.route('/capture_high_res_still', methods=['POST'])
 def capture_high_res_still():
-    """Captures a still image at maximum resolution and saves it."""
+    """Capture a high-resolution still image and save it to the stills directory."""
     frame = camera.capture_still_at_max_resolution()
     if frame is not None:
-        try:
+        if not os.path.exists(STILLS_DIR):
             os.makedirs(STILLS_DIR, exist_ok=True)
-            success, encoded_image_data = cv2.imencode('.jpg', frame)
-            if not success:
-                return jsonify({"success": False, "message": "Failed to encode image to JPEG."}), 500
-            
-            encoded_image_bytes = encoded_image_data.tobytes()
-            timestamp = time.strftime("%Y%m%d-%H%M%S")
-            filename = f"high_res_still_{timestamp}.jpg"
-            filepath = os.path.join(STILLS_DIR, filename)
-
-            try:
-                with open(filepath, 'wb') as f:
-                    f.write(encoded_image_bytes)
-                print(f"High-resolution still saved to {filepath}")
-                return jsonify({"success": True, "message": f"Still image saved as {filename}", "filename": filename})
-            except Exception as e:
-                print(f"Error saving high-resolution still to file: {e}")
-                return jsonify({"success": False, "message": f"Error saving still image: {str(e)}"}), 500
-
-        except Exception as e:
-            print(f"Error processing high-res still: {e}")
-            return jsonify({"success": False, "message": f"Error processing image: {str(e)}"}), 500
+        timestamp = time.strftime("%Y%m%d_%H%M%S")
+        well_label = config_manager.get_well_label()
+        if well_label:
+            filename = f"{well_label}_still_{timestamp}.jpg"
+        else:
+            filename = f"still_{timestamp}.jpg"
+        filepath = os.path.join(STILLS_DIR, filename)
+        import cv2
+        cv2.imwrite(filepath, frame)
+        return jsonify({"success": True, "filename": filename})
     else:
         return jsonify({"success": False, "message": "Failed to capture high-resolution still image."}), 500
 
@@ -255,6 +244,20 @@ def list_stills():
             print(f"Error listing stills directory {STILLS_DIR}: {e}")
             return jsonify({'success': False, 'message': 'Error listing stills'}), 500
     return jsonify({'stills': stills, 'success': True})
+
+@app.route('/api/well_label', methods=['GET'])
+def get_well_label():
+    """Get the current well label."""
+    return jsonify({"well_label": config_manager.get_well_label()})
+
+@app.route('/api/well_label', methods=['POST'])
+def set_well_label():
+    """Set the current well label."""
+    data = request.json
+    if not data or "well_label" not in data:
+        return jsonify({"success": False, "message": "No well_label provided."}), 400
+    config_manager.set_well_label(data["well_label"])
+    return jsonify({"success": True, "well_label": config_manager.get_well_label()})
 
 # --- Download Routes ---
 @app.route('/download/recording/<path:filename>')

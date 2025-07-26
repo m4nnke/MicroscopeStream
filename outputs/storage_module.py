@@ -3,6 +3,7 @@ import os
 from datetime import datetime
 from outputs.output_module import OutputModule
 import queue # For specific exception handling
+from app import config_manager  # Add this import at the top
 
 class StorageModule(OutputModule):
     """Handles video recording and saving."""
@@ -58,7 +59,11 @@ class StorageModule(OutputModule):
 
             height, width = frame_for_dims.shape[:2]
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"video_{timestamp}.mp4"
+            well_label = config_manager.get_well_label()
+            if well_label:
+                filename = f"{well_label}_video_{timestamp}.mp4"
+            else:
+                filename = f"video_{timestamp}.mp4"
             self.current_file = os.path.join(self.output_dir, filename)
             
             fourcc = cv2.VideoWriter_fourcc(*'mp4v')

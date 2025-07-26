@@ -111,7 +111,7 @@ def index():
         'storage_active': storage_manager.is_running,
         'storage_current_file': storage_manager.current_file,
         'timelapse_active': timelapse_manager.is_running,
-        'timelapse_current_frames': len(timelapse_manager.frames) if timelapse_manager else 0,
+        'timelapse_current_frames': timelapse_manager.frame_count if timelapse_manager else 0,
         # Add more status fields as needed, e.g., from timelapse_manager.get_status()
     }
     
@@ -157,8 +157,16 @@ def api_control(component, action):
     target_module = None
     if component == 'camera': target_module = camera
     elif component == 'stream': target_module = stream_manager
-    elif component == 'storage': target_module = storage_manager
-    elif component == 'timelapse': target_module = timelapse_manager
+    elif component == 'storage':
+        target_module = storage_manager
+        if action == 'start':
+            well_label = config_manager.get_well_label()
+            storage_manager.set_well_label(well_label)
+    elif component == 'timelapse':
+        target_module = timelapse_manager
+        if action == 'start':
+            well_label = config_manager.get_well_label()
+            timelapse_manager.set_well_label(well_label)
     else:
         return jsonify({'success': False, 'message': f'Unknown component: {component}'}), 404
 

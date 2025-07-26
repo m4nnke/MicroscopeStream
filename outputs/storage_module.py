@@ -3,7 +3,6 @@ import os
 from datetime import datetime
 from outputs.output_module import OutputModule
 import queue # For specific exception handling
-from app import config_manager  # Add this import at the top
 
 class StorageModule(OutputModule):
     """Handles video recording and saving."""
@@ -13,6 +12,7 @@ class StorageModule(OutputModule):
         self.output_dir = output_dir
         self.writer = None
         self.current_file = None
+        self.well_label = None  # Store well label for this session
         
         # Create output directory if it doesn't exist
         # This should ideally be done once at startup or when output_dir changes
@@ -59,7 +59,7 @@ class StorageModule(OutputModule):
 
             height, width = frame_for_dims.shape[:2]
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            well_label = config_manager.get_well_label()
+            well_label = self.well_label
             if well_label:
                 filename = f"{well_label}_video_{timestamp}.mp4"
             else:
@@ -94,3 +94,6 @@ class StorageModule(OutputModule):
         if self.is_running:
             return float(self.fps) # self.fps is from OutputModule base class
         return 0.0 
+
+    def set_well_label(self, well_label):
+        self.well_label = well_label 

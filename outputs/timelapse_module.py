@@ -5,7 +5,6 @@ from datetime import datetime
 from outputs.output_module import OutputModule
 import queue # For specific exception handling
 import glob
-from app import config_manager  # Add this import at the top
 
 class TimelapseModule(OutputModule):
     """Handles timelapse capture and video creation."""
@@ -19,6 +18,7 @@ class TimelapseModule(OutputModule):
         self.session_dir = None     # Path to current session folder
         self.frame_count = 0        # Counter for frame filenames
         self.start_time = 0         # Timestamp when current timelapse capture started
+        self.well_label = None  # Store well label for this session
 
     def start(self) -> bool:
         """Start the timelapse capture, clearing previous session."""
@@ -85,7 +85,7 @@ class TimelapseModule(OutputModule):
 
         # Output video path
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        well_label = config_manager.get_well_label()
+        well_label = self.well_label
         if well_label:
             video_filename = f"{well_label}_timelapse_{timestamp}.mp4"
         else:
@@ -114,6 +114,9 @@ class TimelapseModule(OutputModule):
         except Exception as e:
             print(f"Timelapse {self.name}: Error creating video {output_path}: {e}")
         self.start_time = time.time() if self.is_running else 0
+
+    def set_well_label(self, well_label):
+        self.well_label = well_label
 
     def get_status(self) -> dict:
         """Get current timelapse status."""

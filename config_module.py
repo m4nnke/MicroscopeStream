@@ -3,7 +3,8 @@ from strategies.image_strategies import (
     EdgeDetectionStrategy,
     GrayscaleStrategy,
     ThresholdStrategy,
-    ContrastEnhancementStrategy
+    ContrastEnhancementStrategy,
+    TimestampStrategy
 )
 
 # Define available processing strategies
@@ -13,6 +14,7 @@ PROCESSING_STRATEGIES = {
     'grayscale': GrayscaleStrategy(),
     'threshold': ThresholdStrategy(),
     'contrast': ContrastEnhancementStrategy(),
+    'timestamp': TimestampStrategy(),
     # 'ocr': OCRStrategy() # If you have it
 }
 

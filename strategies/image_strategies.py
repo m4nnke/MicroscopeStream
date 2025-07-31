@@ -1,6 +1,7 @@
 import cv2
 import numpy as np
 from .base_strategy import ProcessingStrategy
+from datetime import datetime
 
 class EdgeDetectionStrategy(ProcessingStrategy):
     """Strategy that performs edge detection on the image."""
@@ -53,3 +54,33 @@ class ContrastEnhancementStrategy(ProcessingStrategy):
         # Merge channels and convert back to BGR
         enhanced = cv2.merge([cl, a, b])
         return cv2.cvtColor(enhanced, cv2.COLOR_LAB2BGR) 
+
+class TimestampStrategy(ProcessingStrategy):
+    """Strategy that adds a timestamp to the image."""
+    def __init__(self):
+        super().__init__('timestamp')
+        self.font = cv2.FONT_HERSHEY_SIMPLEX
+        self.font_scale = 1.0
+        self.font_thickness = 2
+        self.text_color = (255, 255, 255)  # White color
+        self.text_position = (10, 30)  # Top-left corner with some padding
+
+    def process_image(self, image: np.ndarray) -> np.ndarray:
+        # Create a copy of the image to avoid modifying the original
+        processed_image = image.copy()
+        
+        # Get current timestamp with milliseconds
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]  # Include milliseconds (3 digits)
+        
+        # Add timestamp text to the image
+        cv2.putText(
+            processed_image,
+            timestamp,
+            self.text_position,
+            self.font,
+            self.font_scale,
+            self.text_color,
+            self.font_thickness
+        )
+        
+        return processed_image 

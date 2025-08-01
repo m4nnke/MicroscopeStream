@@ -144,9 +144,27 @@ def api_status():
         'storage_current_file': storage_manager.current_file,
         'timelapse_active': timelapse_manager.is_running,
         'timelapse_info': timelapse_manager.get_status() if timelapse_manager else {}, # from get_status method
+        # Add streaming statistics
+        'stream_stats': stream_manager.get_stats() if stream_manager.is_running else {},
+        'stream_queue_drops': stream_manager.queue_drops if hasattr(stream_manager, 'queue_drops') else 0,
         # Consider adding more specific status like errors or progress here
     }
     return jsonify(status)
+
+@app.route('/api/stream_stats', methods=['GET'])
+def api_stream_stats():
+    """Get detailed streaming statistics."""
+    if not stream_manager.is_running:
+        return jsonify({"error": "Stream not active"}), 400
+    
+    stats = stream_manager.get_stats()
+    stats['queue_drops'] = stream_manager.queue_drops if hasattr(stream_manager, 'queue_drops') else 0
+    stats['queue_size'] = stream_manager.frame_queue.qsize()
+    stats['queue_max_size'] = stream_manager.frame_queue.maxsize
+    stats['target_fps'] = stream_manager.fps
+    stats['frame_interval'] = stream_manager.frame_interval
+    
+    return jsonify(stats)
 
 @app.route('/api/control/<string:component>/<string:action>', methods=['POST'])
 def api_control(component, action):

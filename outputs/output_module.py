@@ -11,7 +11,7 @@ StrategyType = TypeVar('StrategyType', bound=ProcessingStrategy)
 class OutputModule(ABC):
     """Base class for all output modules (streaming, recording, timelapse)."""
     
-    def __init__(self, name: str, max_queue_size: int = 300):
+    def __init__(self, name: str, max_queue_size: int = 500):
         self.name = name
         self.frame_queue = queue.Queue(maxsize=max_queue_size)
         self.is_running = False
@@ -21,6 +21,7 @@ class OutputModule(ABC):
         self.frame_interval = 1.0 / self.fps  # Time between frames
         self.last_frame_time = 0
         self.processing_strategy: Optional[ProcessingStrategy] = None
+        self.queue_drops = 0  # Track dropped frames due to full queue
 
     def start(self) -> bool:
         """Start the output module processing."""
@@ -29,6 +30,7 @@ class OutputModule(ABC):
             
         self.is_running = True
         self.clear_queue()
+        self.queue_drops = 0  # Reset drop counter
         self.thread = threading.Thread(target=self.process_frames, daemon=True)
         self.thread.start()
         return True
@@ -58,10 +60,22 @@ class OutputModule(ABC):
             return False
             
         try:
-            self.frame_queue.put(frame, block=False)
+            # Use a small timeout to avoid blocking the camera thread
+            self.frame_queue.put(frame, block=True, timeout=0.001)
             return True
         except queue.Full:
-            return False
+            # Queue is full, drop the oldest frame and add the new one
+            try:
+                self.frame_queue.get_nowait()  # Remove oldest frame
+                self.frame_queue.put_nowait(frame)  # Add new frame
+                self.queue_drops += 1
+                if self.queue_drops % 10 == 0:  # Log every 10 drops
+                    print(f"Module {self.name}: Queue full, dropped {self.queue_drops} frames")
+                return True
+            except queue.Full:
+                # Still full after trying to make space
+                self.queue_drops += 1
+                return False
 
     def set_fps(self, fps: int) -> bool:
         """Set the FPS for this output module."""

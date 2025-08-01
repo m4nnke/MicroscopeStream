@@ -160,6 +160,17 @@
             <div class="controls-group">
                 <button id="captureStillButton">Capture Max Res Still</button>
             </div>
+            
+            <!-- Streaming Statistics -->
+            <div class="controls-group" id="streamStatsGroup" style="display: none;">
+                <h4>Stream Statistics</h4>
+                <div style="font-size: 0.85em; background: #f8f9fa; padding: 8px; border-radius: 4px;">
+                    <div>Target FPS: <span id="targetFps">-</span></div>
+                    <div>Actual FPS: <span id="actualFps">-</span></div>
+                    <div>Frames Dropped: <span id="framesDropped">-</span></div>
+                    <div>Queue Usage: <span id="queueUsage">-</span></div>
+                </div>
+            </div>
         </div>
 
         <div class="column" id="settings-column">
@@ -430,6 +441,20 @@
             } else {
                  document.getElementById('timelapseFramesStatus').textContent = `Timelapse Idle`;
                  document.getElementById('timelapseProgress').textContent = '';
+            }
+            
+            // Update streaming statistics
+            const statsGroup = document.getElementById('streamStatsGroup');
+            if (st.stream_active) {
+                statsGroup.style.display = 'block';
+                document.getElementById('targetFps').textContent = st.stream_stats?.target_fps || '-';
+                document.getElementById('actualFps').textContent = st.stream_stats?.actual_fps ? st.stream_stats.actual_fps.toFixed(1) : '-';
+                document.getElementById('framesDropped').textContent = st.stream_queue_drops || 0;
+                const queueUsage = st.stream_stats?.queue_size && st.stream_stats?.queue_max_size ? 
+                    `${st.stream_stats.queue_size}/${st.stream_stats.queue_max_size}` : '-';
+                document.getElementById('queueUsage').textContent = queueUsage;
+            } else {
+                statsGroup.style.display = 'none';
             }
         }
 

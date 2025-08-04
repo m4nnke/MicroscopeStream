@@ -11,6 +11,8 @@ class TimelapseModule(OutputModule):
     
     def __init__(self, name="timelapse", output_dir="timelapses"):
         super().__init__(name)
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        self.output_dir = os.path.join(script_dir, output_dir)
         self.output_dir = output_dir
         self.interval: float = 1.0  # Capture interval in seconds (also self.frame_interval in base class)
         self.duration: int = 300    # Timelapse duration in seconds

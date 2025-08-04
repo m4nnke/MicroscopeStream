@@ -9,7 +9,9 @@ class StorageModule(OutputModule):
     
     def __init__(self, name="storage", output_dir="recordings"):
         super().__init__(name)
-        self.output_dir = output_dir
+
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        self.output_dir = os.path.join(script_dir, output_dir)
         self.writer = None
         self.current_file = None
         self.well_label = None  # Store well label for this session

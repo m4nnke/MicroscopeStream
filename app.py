@@ -92,7 +92,8 @@ def apply_module_configurations():
 # Apply initial configurations at startup
 apply_module_configurations()
 
-STILLS_DIR = "stills" # Define the directory for storing stills
+script_dir = os.path.dirname(os.path.abspath(__file__))
+STILLS_DIR = os.path.join(script_dir, "stills")
 
 @app.route('/')
 def index():

@@ -160,6 +160,21 @@
             <div class="controls-group">
                 <button id="captureStillButton">Capture Max Res Still</button>
             </div>
+
+            <div id="files-column">
+
+            <h2 style="padding-top: 40px;">Recordings</h2>
+            <button id="refreshRecordings" style="margin-bottom:5px;">Refresh</button>
+            <ul id="recordingsList"></ul>
+
+            <h2 style="margin-top:20px;">Timelapses</h2>
+            <button id="refreshTimelapses" style="margin-bottom:5px;">Refresh</button>
+            <ul id="timelapsesList"></ul>
+
+            <h2 style="margin-top:20px;">Stills</h2>
+            <button id="refreshStills" style="margin-bottom:5px;">Refresh</button>
+            <ul id="stillsList"></ul>
+        </div>
         </div>
 
         <div class="column" id="settings-column">
@@ -209,27 +224,17 @@
                     <div><label>Output Dir:</label> <span id="timelapseOutputDir" style="font-weight:normal; font-size:0.9em;"></span></div>
                     <div id="timelapseProgress"></div>
                 </div>
+
+
                 <div class="settings-group">
                     <h3>Microplate Well Selection</h3>
                     <div id="wellGrid" style="display: grid; grid-template-columns: repeat(12, 1fr); gap: 2px; margin-bottom: 10px;"></div>
                     <div>Selected Well: <span id="selectedWellLabel">None</span></div>
                 </div>
             </div>
+
+
             <button id="applyAllSettings" style="width:100%; padding-top:10px; padding-bottom:10px; margin-top:auto;">Apply Changed Settings</button>
-        </div>
-
-        <div class="column" id="files-column">
-            <h2>Recordings</h2>
-            <button id="refreshRecordings" style="margin-bottom:5px;">Refresh</button>
-            <ul id="recordingsList"></ul>
-            
-            <h2 style="margin-top:20px;">Timelapses</h2>
-            <button id="refreshTimelapses" style="margin-bottom:5px;">Refresh</button>
-            <ul id="timelapsesList"></ul>
-
-            <h2 style="margin-top:20px;">Stills</h2>
-            <button id="refreshStills" style="margin-bottom:5px;">Refresh</button>
-            <ul id="stillsList"></ul>
         </div>
     </div>
 
